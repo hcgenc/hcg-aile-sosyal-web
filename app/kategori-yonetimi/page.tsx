@@ -45,13 +45,16 @@ export default function CategoryManagementPage() {
     if (!supabase) return
 
     try {
-      const { data, error } = await supabase.from("main_categories").select("*").order("name")
+      const result = await supabase.select("main_categories", {
+        select: "*",
+        orderBy: { column: "name", ascending: true }
+      })
 
-      if (error) throw error
+      if (result.error) throw result.error
 
-      if (data) {
+      if (result.data) {
         setMainCategories(
-          data.map((item) => ({
+          result.data.map((item: any) => ({
             id: item.id,
             name: item.name,
           })),
@@ -72,25 +75,25 @@ export default function CategoryManagementPage() {
     if (!supabase) return
 
     try {
-      let query = supabase
-        .from("sub_categories")
-        .select(`
+      const queryOptions: any = {
+        select: `
           *,
           main_categories(name)
-        `)
-        .order("name")
-
-      if (selectedMainCategoryId) {
-        query = query.eq("main_category_id", selectedMainCategoryId)
+        `,
+        orderBy: { column: "name", ascending: true }
       }
 
-      const { data, error } = await query
+      if (selectedMainCategoryId) {
+        queryOptions.filter = { main_category_id: selectedMainCategoryId }
+      }
 
-      if (error) throw error
+      const result = await supabase.select("sub_categories", queryOptions)
 
-      if (data) {
+      if (result.error) throw result.error
+
+      if (result.data) {
         setSubCategories(
-          data.map((item) => ({
+          result.data.map((item: any) => ({
             id: item.id,
             name: item.name,
             mainCategoryId: item.main_category_id,
@@ -126,12 +129,11 @@ export default function CategoryManagementPage() {
     if (!supabase || !newMainCategoryName.trim()) return
 
     try {
-      const { data, error } = await supabase
-        .from("main_categories")
-        .insert({ name: newMainCategoryName.trim() })
-        .select()
+      const result = await supabase.insert("main_categories", {
+        name: newMainCategoryName.trim()
+      })
 
-      if (error) throw error
+      if (result.error) throw result.error
 
       await logAction("ADD_MAIN_CATEGORY", `Added main category: ${newMainCategoryName.trim()}`)
 
@@ -157,12 +159,12 @@ export default function CategoryManagementPage() {
     if (!supabase || !editMainCategoryId || !editMainCategoryName.trim()) return
 
     try {
-      const { error } = await supabase
-        .from("main_categories")
-        .update({ name: editMainCategoryName.trim() })
-        .eq("id", editMainCategoryId)
+      const result = await supabase.update("main_categories", 
+        { name: editMainCategoryName.trim() },
+        { id: editMainCategoryId }
+      )
 
-      if (error) throw error
+      if (result.error) throw result.error
 
       await logAction("UPDATE_MAIN_CATEGORY", `Updated main category: ${editMainCategoryName.trim()}`)
 
@@ -190,14 +192,14 @@ export default function CategoryManagementPage() {
 
     try {
       // Önce bu ana kategoriye ait alt kategorileri kontrol et
-      const { data: subCats, error: subError } = await supabase
-        .from("sub_categories")
-        .select("id")
-        .eq("main_category_id", id)
+      const subCatsResult = await supabase.select("sub_categories", {
+        select: "id",
+        filter: { main_category_id: id }
+      })
 
-      if (subError) throw subError
+      if (subCatsResult.error) throw subCatsResult.error
 
-      if (subCats && subCats.length > 0) {
+      if (subCatsResult.data && subCatsResult.data.length > 0) {
         toast({
           title: "Uyarı",
           description: "Bu kategoriye ait alt kategoriler bulunmaktadır. Önce bunları silmeniz gerekiyor.",
@@ -207,14 +209,14 @@ export default function CategoryManagementPage() {
       }
 
       // Sonra bu ana kategoriye ait adresler var mı kontrol et
-      const { data: addresses, error: addrError } = await supabase
-        .from("addresses")
-        .select("id")
-        .eq("main_category_id", id)
+      const addressesResult = await supabase.select("addresses", {
+        select: "id",
+        filter: { main_category_id: id }
+      })
 
-      if (addrError) throw addrError
+      if (addressesResult.error) throw addressesResult.error
 
-      if (addresses && addresses.length > 0) {
+      if (addressesResult.data && addressesResult.data.length > 0) {
         toast({
           title: "Uyarı",
           description: "Bu kategoriye ait adresler bulunmaktadır. Önce bunları silmeniz veya güncellenmeniz gerekiyor.",
@@ -224,9 +226,9 @@ export default function CategoryManagementPage() {
       }
 
       // Kategoriyi sil
-      const { error } = await supabase.from("main_categories").delete().eq("id", id)
+      const result = await supabase.delete("main_categories", { id })
 
-      if (error) throw error
+      if (result.error) throw result.error
 
       await logAction("DELETE_MAIN_CATEGORY", `Deleted main category with ID: ${id}`)
 
@@ -251,15 +253,12 @@ export default function CategoryManagementPage() {
     if (!supabase || !selectedMainCategoryId || !newSubCategoryName.trim()) return
 
     try {
-      const { data, error } = await supabase
-        .from("sub_categories")
-        .insert({
-          name: newSubCategoryName.trim(),
-          main_category_id: selectedMainCategoryId,
-        })
-        .select()
+      const result = await supabase.insert("sub_categories", {
+        name: newSubCategoryName.trim(),
+        main_category_id: selectedMainCategoryId,
+      })
 
-      if (error) throw error
+      if (result.error) throw result.error
 
       await logAction(
         "ADD_SUB_CATEGORY",
@@ -288,12 +287,12 @@ export default function CategoryManagementPage() {
     if (!supabase || !editSubCategoryId || !editSubCategoryName.trim()) return
 
     try {
-      const { error } = await supabase
-        .from("sub_categories")
-        .update({ name: editSubCategoryName.trim() })
-        .eq("id", editSubCategoryId)
+      const result = await supabase.update("sub_categories",
+        { name: editSubCategoryName.trim() },
+        { id: editSubCategoryId }
+      )
 
-      if (error) throw error
+      if (result.error) throw result.error
 
       await logAction("UPDATE_SUB_CATEGORY", `Updated sub category: ${editSubCategoryName.trim()}`)
 
@@ -321,14 +320,14 @@ export default function CategoryManagementPage() {
 
     try {
       // Önce bu alt kategoriye ait adresler var mı kontrol et
-      const { data: addresses, error: addrError } = await supabase
-        .from("addresses")
-        .select("id")
-        .eq("sub_category_id", id)
+      const addressesResult = await supabase.select("addresses", {
+        select: "id",
+        filter: { sub_category_id: id }
+      })
 
-      if (addrError) throw addrError
+      if (addressesResult.error) throw addressesResult.error
 
-      if (addresses && addresses.length > 0) {
+      if (addressesResult.data && addressesResult.data.length > 0) {
         toast({
           title: "Uyarı",
           description:
@@ -339,9 +338,9 @@ export default function CategoryManagementPage() {
       }
 
       // Alt kategoriyi sil
-      const { error } = await supabase.from("sub_categories").delete().eq("id", id)
+      const result = await supabase.delete("sub_categories", { id })
 
-      if (error) throw error
+      if (result.error) throw result.error
 
       await logAction("DELETE_SUB_CATEGORY", `Deleted sub category with ID: ${id}`)
 

@@ -37,12 +37,23 @@ export default function ApiManagementPage() {
 
     setIsLoading(true)
     try {
-      const { data, error } = await supabase.from("api_keys").select("*").order("service_name")
+      const result = await supabase.select("api_keys", {
+        select: "*",
+        orderBy: { column: "service_name", ascending: true }
+      })
 
-      if (error) throw error
+      if (result.error) throw result.error
 
-      if (data) {
-        setApiKeys(data)
+      if (result.data) {
+        setApiKeys(result.data.map((item: any) => ({
+          id: item.id,
+          service_name: item.service_name,
+          api_key: item.key_value,
+          description: item.description,
+          is_active: item.is_active,
+          created_at: item.created_at,
+          updated_at: item.updated_at,
+        })))
       }
     } catch (error) {
       console.error("API anahtarları yüklenirken hata:", error)

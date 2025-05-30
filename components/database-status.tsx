@@ -20,24 +20,33 @@ export function DatabaseStatus() {
 
       try {
         // Ana kategoriler tablosunu kontrol et
-        const { error: mainCategoriesError } = await supabase.from("main_categories").select("count").limit(1)
+        const mainCategoriesResult = await supabase.select("main_categories", {
+          select: "count",
+          limit: 1
+        })
 
-        if (mainCategoriesError) {
-          throw new Error(`Ana kategoriler tablosu hatası: ${mainCategoriesError.message}`)
+        if (mainCategoriesResult.error) {
+          throw new Error(`Ana kategoriler tablosu hatası: ${mainCategoriesResult.error.message}`)
         }
 
         // Alt kategoriler tablosunu kontrol et
-        const { error: subCategoriesError } = await supabase.from("sub_categories").select("count").limit(1)
+        const subCategoriesResult = await supabase.select("sub_categories", {
+          select: "count",
+          limit: 1
+        })
 
-        if (subCategoriesError) {
-          throw new Error(`Alt kategoriler tablosu hatası: ${subCategoriesError.message}`)
+        if (subCategoriesResult.error) {
+          throw new Error(`Alt kategoriler tablosu hatası: ${subCategoriesResult.error.message}`)
         }
 
         // Adresler tablosunu kontrol et
-        const { error: addressesError } = await supabase.from("addresses").select("count").limit(1)
+        const addressesResult = await supabase.select("addresses", {
+          select: "count",
+          limit: 1
+        })
 
-        if (addressesError) {
-          throw new Error(`Adresler tablosu hatası: ${addressesError.message}`)
+        if (addressesResult.error) {
+          throw new Error(`Adresler tablosu hatası: ${addressesResult.error.message}`)
         }
 
         setStatus("connected")

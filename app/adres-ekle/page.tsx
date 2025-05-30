@@ -57,21 +57,16 @@ export default function AddressAddPage() {
     async function loadMainCategories() {
       if (!supabase) return
 
-      const { data, error } = await supabase.from("main_categories").select("*").order("name")
+      const result = await supabase.select("main_categories", {
+        select: "*",
+        orderBy: { column: "name", ascending: true }
+      })
 
-      if (error) {
-        console.error("Ana kategoriler yüklenirken hata:", error)
-        toast({
-          title: "Hata",
-          description: "Kategoriler yüklenirken bir sorun oluştu.",
-          variant: "destructive",
-        })
-        return
-      }
+      if (result.error) throw result.error
 
-      if (data) {
+      if (result.data) {
         setMainCategories(
-          data.map((item) => ({
+          result.data.map((item: any) => ({
             id: item.id,
             name: item.name,
           })),
@@ -87,14 +82,14 @@ export default function AddressAddPage() {
     async function loadSubCategories() {
       if (!supabase || !selectedMainCategory) return
 
-      const { data, error } = await supabase
-        .from("sub_categories")
-        .select("*")
-        .eq("main_category_id", selectedMainCategory)
-        .order("name")
+      const result = await supabase.select("sub_categories", {
+        select: "*",
+        filter: { main_category_id: selectedMainCategory },
+        orderBy: { column: "name", ascending: true }
+      })
 
-      if (error) {
-        console.error("Alt kategoriler yüklenirken hata:", error)
+      if (result.error) {
+        console.error("Alt kategoriler yüklenirken hata:", result.error)
         toast({
           title: "Hata",
           description: "Alt kategoriler yüklenirken bir sorun oluştu.",
@@ -103,9 +98,9 @@ export default function AddressAddPage() {
         return
       }
 
-      if (data) {
+      if (result.data) {
         setSubCategories(
-          data.map((item) => ({
+          result.data.map((item: any) => ({
             id: item.id,
             name: item.name,
             mainCategoryId: item.main_category_id,
@@ -410,7 +405,7 @@ export default function AddressAddPage() {
     try {
       const [lat, lng] = coordinates
 
-      const { error } = await supabase.from("addresses").insert({
+      const result = await supabase.insert("addresses", {
         first_name: firstName,
         last_name: lastName,
         province: province,
@@ -423,8 +418,8 @@ export default function AddressAddPage() {
         sub_category_id: selectedSubCategory,
       })
 
-      if (error) {
-        throw error
+      if (result.error) {
+        throw result.error
       }
 
       await logAction("ADD_ADDRESS", `Added address: ${firstName} ${lastName} - ${province}, ${district}`)

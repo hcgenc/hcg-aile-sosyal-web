@@ -97,9 +97,9 @@ export default function ServiceListPage() {
     try {
       const addressToDelete = addresses.find((addr) => addr.id === id)
 
-      const { error } = await supabase.from("addresses").delete().eq("id", id)
+      const result = await supabase.delete("addresses", { id })
 
-      if (error) throw error
+      if (result.error) throw result.error
 
       await logAction("DELETE_ADDRESS", `Deleted address: ${addressToDelete?.firstName} ${addressToDelete?.lastName}`)
 

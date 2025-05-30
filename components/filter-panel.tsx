@@ -40,16 +40,19 @@ export function FilterPanel() {
     async function loadMainCategories() {
       if (!supabase) return
 
-      const { data, error } = await supabase.from("main_categories").select("*").order("name")
+      const result = await supabase.select("main_categories", {
+        select: "*",
+        orderBy: { column: "name", ascending: true }
+      })
 
-      if (error) {
-        console.error("Ana kategoriler yüklenirken hata:", error)
+      if (result.error) {
+        console.error("Ana kategoriler yüklenirken hata:", result.error)
         return
       }
 
-      if (data) {
+      if (result.data) {
         setMainCategories(
-          data.map((item) => ({
+          result.data.map((item: any) => ({
             id: item.id,
             name: item.name,
           })),
@@ -65,20 +68,20 @@ export function FilterPanel() {
     async function loadSubCategories() {
       if (!supabase || !selectedMainCategory) return
 
-      const { data, error } = await supabase
-        .from("sub_categories")
-        .select("*")
-        .eq("main_category_id", selectedMainCategory)
-        .order("name")
+      const result = await supabase.select("sub_categories", {
+        select: "*",
+        filter: { main_category_id: selectedMainCategory },
+        orderBy: { column: "name", ascending: true }
+      })
 
-      if (error) {
-        console.error("Alt kategoriler yüklenirken hata:", error)
+      if (result.error) {
+        console.error("Alt kategoriler yüklenirken hata:", result.error)
         return
       }
 
-      if (data) {
+      if (result.data) {
         setSubCategories(
-          data.map((item) => ({
+          result.data.map((item: any) => ({
             id: item.id,
             name: item.name,
             mainCategoryId: item.main_category_id,

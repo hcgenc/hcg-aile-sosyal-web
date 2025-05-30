@@ -112,40 +112,44 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
       console.log("Loading markers with filter:", filter, "Force refresh:", forceRefresh)
 
       try {
-        let query = supabase.from("addresses").select(`
-        *,
-        main_categories(name),
-        sub_categories(name)
-      `)
+        // Build query options for proxy
+        const queryOptions: any = {
+          select: `
+            *,
+            main_categories(name),
+            sub_categories(name)
+          `,
+          filter: {}
+        }
 
         if (filter.mainCategoryId) {
-          query = query.eq("main_category_id", filter.mainCategoryId)
+          queryOptions.filter.main_category_id = filter.mainCategoryId
         }
 
         if (filter.subCategoryId) {
-          query = query.eq("sub_category_id", filter.subCategoryId)
+          queryOptions.filter.sub_category_id = filter.subCategoryId
         }
 
         if (filter.province) {
-          query = query.eq("province", filter.province)
+          queryOptions.filter.province = filter.province
         }
 
         if (filter.district) {
-          query = query.eq("district", filter.district)
+          queryOptions.filter.district = filter.district
         }
 
         if (filter.neighborhood) {
-          query = query.eq("neighborhood", filter.neighborhood)
+          queryOptions.filter.neighborhood = filter.neighborhood
         }
 
-        const { data, error } = await query
+        const result = await supabase.select("addresses", queryOptions)
 
-        if (error) {
-          throw error
+        if (result.error) {
+          throw result.error
         }
 
-        if (data) {
-          const formattedMarkers = data.map((item) => ({
+        if (result.data) {
+          const formattedMarkers = result.data.map((item: any) => ({
             id: item.id,
             latitude: item.latitude,
             longitude: item.longitude,
@@ -197,34 +201,34 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
 
     try {
       // Always load all provinces
-      const { data: provinceData, error: provinceError } = await supabase
-        .from("addresses")
-        .select("province")
-        .order("province")
+      const provinceResult = await supabase.select("addresses", {
+        select: "province",
+        orderBy: { column: "province", ascending: true }
+      })
 
-      if (provinceError) throw provinceError
+      if (provinceResult.error) throw provinceResult.error
 
-      if (provinceData) {
-        const uniqueProvinces = [...new Set(provinceData.map((item) => item.province))]
+      if (provinceResult.data) {
+        const uniqueProvinces = [...new Set(provinceResult.data.map((item: any) => item.province))]
           .filter(Boolean)
-          .sort((a, b) => a.localeCompare(b, "tr"))
+          .sort((a: string, b: string) => a.localeCompare(b, "tr"))
         setProvinces(uniqueProvinces)
       }
 
       // Load districts based on selected province
       if (filter.province) {
-        const { data: districtData, error: districtError } = await supabase
-          .from("addresses")
-          .select("district")
-          .eq("province", filter.province)
-          .order("district")
+        const districtResult = await supabase.select("addresses", {
+          select: "district",
+          filter: { province: filter.province },
+          orderBy: { column: "district", ascending: true }
+        })
 
-        if (districtError) throw districtError
+        if (districtResult.error) throw districtResult.error
 
-        if (districtData) {
-          const uniqueDistricts = [...new Set(districtData.map((item) => item.district))]
+        if (districtResult.data) {
+          const uniqueDistricts = [...new Set(districtResult.data.map((item: any) => item.district))]
             .filter(Boolean)
-            .sort((a, b) => a.localeCompare(b, "tr"))
+            .sort((a: string, b: string) => a.localeCompare(b, "tr"))
           setDistricts(uniqueDistricts)
         }
       } else {
@@ -233,19 +237,21 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Load neighborhoods based on selected district and province
       if (filter.province && filter.district) {
-        const { data: neighborhoodData, error: neighborhoodError } = await supabase
-          .from("addresses")
-          .select("neighborhood")
-          .eq("province", filter.province)
-          .eq("district", filter.district)
-          .order("neighborhood")
+        const neighborhoodResult = await supabase.select("addresses", {
+          select: "neighborhood",
+          filter: { 
+            province: filter.province,
+            district: filter.district
+          },
+          orderBy: { column: "neighborhood", ascending: true }
+        })
 
-        if (neighborhoodError) throw neighborhoodError
+        if (neighborhoodResult.error) throw neighborhoodResult.error
 
-        if (neighborhoodData) {
-          const uniqueNeighborhoods = [...new Set(neighborhoodData.map((item) => item.neighborhood))]
+        if (neighborhoodResult.data) {
+          const uniqueNeighborhoods = [...new Set(neighborhoodResult.data.map((item: any) => item.neighborhood))]
             .filter(Boolean)
-            .sort((a, b) => a.localeCompare(b, "tr"))
+            .sort((a: string, b: string) => a.localeCompare(b, "tr"))
           setNeighborhoods(uniqueNeighborhoods)
         }
       } else {

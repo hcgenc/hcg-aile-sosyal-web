@@ -1,4 +1,4 @@
-import { createSupabaseClient } from "@/lib/supabase-helpers"
+import { supabaseProxy } from "@/lib/supabase-proxy"
 
 // Track if the script is already loading
 let isLoading = false
@@ -6,7 +6,7 @@ let isLoaded = false
 let loadPromise: Promise<void> | null = null
 let cachedApiKey: string | null = null
 
-// Get Yandex Maps API key from Supabase
+// Get Yandex Maps API key from Supabase via proxy
 async function getYandexApiKey(): Promise<string> {
   // Return cached key if available
   if (cachedApiKey) {
@@ -14,28 +14,27 @@ async function getYandexApiKey(): Promise<string> {
   }
 
   try {
-    const supabase = createSupabaseClient()
+    const result = await supabaseProxy.selectSingle("api_keys", {
+      select: "api_key",
+      filter: {
+        service_name: "yandex_maps",
+        is_active: true
+      }
+    })
 
-    const { data, error } = await supabase
-      .from("api_keys")
-      .select("api_key")
-      .eq("service_name", "yandex_maps")
-      .eq("is_active", true)
-      .single()
-
-    if (error) {
-      console.error("Error fetching Yandex API key from Supabase:", error)
-      throw new Error(`Supabase API key fetch failed: ${error.message}`)
+    if (result.error) {
+      console.error("Error fetching Yandex API key from Supabase:", result.error)
+      throw new Error(`Supabase API key fetch failed: ${result.error.message}`)
     }
 
-    if (!data?.api_key) {
+    if (!result.data?.api_key) {
       console.error("No active Yandex API key found in Supabase")
       throw new Error("No active Yandex Maps API key found in database. Please add an API key in the admin panel.")
     }
 
-    cachedApiKey = data.api_key
-    console.log("Successfully loaded Yandex API key from Supabase")
-    return data.api_key
+    cachedApiKey = result.data.api_key
+    console.log("Successfully loaded Yandex API key from Supabase via proxy")
+    return result.data.api_key
   } catch (error) {
     console.error("Error connecting to Supabase for API key:", error)
     throw new Error(`Failed to retrieve Yandex Maps API key: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -325,18 +324,19 @@ export async function reverseGeocode(coords: [number, number]): Promise<any | nu
 // Function to update API key in Supabase (for admin use)
 export async function updateYandexApiKey(newApiKey: string): Promise<boolean> {
   try {
-    const supabase = createSupabaseClient()
-
-    const { error } = await supabase
-      .from("api_keys")
-      .update({
+    const result = await supabaseProxy.update(
+      "api_keys",
+      {
         api_key: newApiKey,
         updated_at: new Date().toISOString(),
-      })
-      .eq("service_name", "yandex_maps")
+      },
+      {
+        service_name: "yandex_maps"
+      }
+    )
 
-    if (error) {
-      console.error("Error updating Yandex API key:", error)
+    if (result.error) {
+      console.error("Error updating Yandex API key:", result.error)
       return false
     }
 

@@ -73,10 +73,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       setIsLoading(true)
 
-      // Query user from database
-      const { data: userData, error } = await supabase.from("users").select("*").eq("username", username).single()
+      // Query user from database via proxy
+      const result = await supabase.selectSingle("users", {
+        select: "*",
+        filter: { username: username }
+      })
 
-      if (error || !userData) {
+      if (result.error || !result.data) {
         toast({
           title: "Hata",
           description: "Kullanıcı adı veya şifre hatalı.",
@@ -84,6 +87,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         })
         return false
       }
+
+      const userData = result.data
 
       // Verify password
       if (!verifyPassword(password, userData.password)) {
@@ -105,8 +110,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         lastLogin: userData.last_login,
       }
 
-      // Update last login
-      await supabase.from("users").update({ last_login: new Date().toISOString() }).eq("id", userData.id)
+      // Update last login via proxy
+      await supabase.update("users", 
+        { last_login: new Date().toISOString() }, 
+        { id: userData.id }
+      )
 
       // Save to localStorage and state
       localStorage.setItem("user", JSON.stringify(userObj))
@@ -173,7 +181,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (!supabase) return
 
     try {
-      await supabase.from("logs").insert({
+      await supabase.insert("logs", {
         user_id: userObj.id,
         username: userObj.username,
         action,

@@ -1,39 +1,43 @@
 "use client"
 
 import type React from "react"
-
 import { createContext, useContext, useState, useEffect } from "react"
-import type { SupabaseClient } from "@supabase/auth-helpers-nextjs"
-import { createSupabaseClient } from "@/lib/supabase-helpers"
-import type { Database } from "@/types/supabase"
+import { supabaseProxy } from "@/lib/supabase-proxy"
 
 type SupabaseContextType = {
-  supabase: SupabaseClient<Database> | null
+  supabase: typeof supabaseProxy
   isLoading: boolean
   refreshClient: () => void
 }
 
 const SupabaseContext = createContext<SupabaseContextType>({
-  supabase: null,
-  isLoading: true,
+  supabase: supabaseProxy,
+  isLoading: false,
   refreshClient: () => {},
 })
 
 export const useSupabase = () => useContext(SupabaseContext)
 
 export const SupabaseProvider = ({ children }: { children: React.ReactNode }) => {
-  const [supabase, setSupabase] = useState<SupabaseClient<Database> | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   const refreshClient = () => {
-    const client = createSupabaseClient()
-    setSupabase(client)
+    // Server-side proxy doesn't need refresh
+    console.log("Using server-side proxy - no refresh needed")
   }
 
   useEffect(() => {
-    refreshClient()
-    setIsLoading(false)
+    // Simulate loading for consistency
+    const timer = setTimeout(() => {
+      setIsLoading(false)
+    }, 100)
+
+    return () => clearTimeout(timer)
   }, [])
 
-  return <SupabaseContext.Provider value={{ supabase, isLoading, refreshClient }}>{children}</SupabaseContext.Provider>
+  return (
+    <SupabaseContext.Provider value={{ supabase: supabaseProxy, isLoading, refreshClient }}>
+      {children}
+    </SupabaseContext.Provider>
+  )
 }

@@ -33,26 +33,24 @@ export function ActiveFilters() {
       if (!supabase) return
 
       if (filter.mainCategoryId) {
-        const { data } = await supabase
-          .from("main_categories")
-          .select("name")
-          .eq("id", filter.mainCategoryId)
-          .single()
+        const result = await supabase.selectSingle("main_categories", {
+          select: "name",
+          filter: { id: filter.mainCategoryId }
+        })
 
-        if (data) {
-          setMainCategoryName(data.name)
+        if (result.data) {
+          setMainCategoryName(result.data.name)
         }
       }
 
       if (filter.subCategoryId) {
-        const { data } = await supabase
-          .from("sub_categories")
-          .select("name")
-          .eq("id", filter.subCategoryId)
-          .single()
+        const result = await supabase.selectSingle("sub_categories", {
+          select: "name",
+          filter: { id: filter.subCategoryId }
+        })
 
-        if (data) {
-          setSubCategoryName(data.name)
+        if (result.data) {
+          setSubCategoryName(result.data.name)
         }
       }
     }

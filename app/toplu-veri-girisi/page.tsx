@@ -66,17 +66,23 @@ export default function BulkDataEntryPage() {
 
     try {
       const [mainResult, subResult] = await Promise.all([
-        supabase.from("main_categories").select("*").order("name"),
-        supabase.from("sub_categories").select("*").order("name"),
+        supabase.select("main_categories", {
+          select: "*",
+          orderBy: { column: "name", ascending: true }
+        }),
+        supabase.select("sub_categories", {
+          select: "*",
+          orderBy: { column: "name", ascending: true }
+        }),
       ])
 
       if (mainResult.error) throw mainResult.error
       if (subResult.error) throw subResult.error
 
       setCategories({
-        main: mainResult.data?.map((item) => ({ id: item.id, name: item.name })) || [],
+        main: mainResult.data?.map((item: any) => ({ id: item.id, name: item.name })) || [],
         sub:
-          subResult.data?.map((item) => ({
+          subResult.data?.map((item: any) => ({
             id: item.id,
             name: item.name,
             mainCategoryId: item.main_category_id,
@@ -249,7 +255,7 @@ export default function BulkDataEntryPage() {
         row.longitude = geocodeResult.coords[1]
 
         // Save to database
-        const { error } = await supabase.from("addresses").insert({
+        const result = await supabase.insert("addresses", {
           first_name: row.firstName,
           last_name: row.lastName,
           province: row.province,
@@ -262,7 +268,7 @@ export default function BulkDataEntryPage() {
           sub_category_id: subCategory.id,
         })
 
-        if (error) throw error
+        if (result.error) throw result.error
 
         row.status = "success"
         successCount++
