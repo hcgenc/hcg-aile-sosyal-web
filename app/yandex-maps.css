@@ -1,0 +1,39 @@
+/* Yandex Maps Styles */
+.ymaps-2-1-79-map {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.ymaps-2-1-79-balloon__content {
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+}
+
+.ymaps-2-1-79-balloon__close {
+  right: 10px !important;
+  top: 10px !important;
+  z-index: 10 !important;
+}
+
+.ymaps-2-1-79-balloon__layout {
+  border-radius: 12px !important;
+  overflow: hidden !important;
+}
+
+/* Animation for popup appearance */
+.ymaps-2-1-79-balloon {
+  animation: popupFadeIn 0.3s ease-out;
+}
+
+@keyframes popupFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
