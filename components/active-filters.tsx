@@ -1,12 +1,14 @@
 "use client"
 
 import { useMap } from "@/context/map-context"
+import { useSupabase } from "@/context/supabase-context"
 import { X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useEffect, useState } from "react"
 
 export function ActiveFilters() {
   const { filter, setFilter } = useMap()
+  const { supabase } = useSupabase()
   const [mainCategoryName, setMainCategoryName] = useState<string | null>(null)
   const [subCategoryName, setSubCategoryName] = useState<string | null>(null)
 
@@ -28,11 +30,10 @@ export function ActiveFilters() {
         return
       }
 
-      const { supabase } = await import("@/context/supabase-context")
-      const supabaseClient = supabase.createClient()
+      if (!supabase) return
 
       if (filter.mainCategoryId) {
-        const { data } = await supabaseClient
+        const { data } = await supabase
           .from("main_categories")
           .select("name")
           .eq("id", filter.mainCategoryId)
@@ -44,7 +45,7 @@ export function ActiveFilters() {
       }
 
       if (filter.subCategoryId) {
-        const { data } = await supabaseClient
+        const { data } = await supabase
           .from("sub_categories")
           .select("name")
           .eq("id", filter.subCategoryId)
@@ -57,7 +58,7 @@ export function ActiveFilters() {
     }
 
     loadCategoryNames()
-  }, [filter.mainCategoryId, filter.subCategoryId])
+  }, [filter.mainCategoryId, filter.subCategoryId, supabase])
 
   // Remove a specific filter
   const removeFilter = (key: keyof typeof filter) => {
