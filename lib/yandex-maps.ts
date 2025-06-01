@@ -151,12 +151,8 @@ export async function geocodeAddress(address: string): Promise<[number, number] 
             const coords = firstGeoObject.geometry.getCoordinates()
             const addressLine = firstGeoObject.getAddressLine()
 
-            console.log("Found coordinates:", coords)
-            console.log("Address line:", addressLine)
-
             resolve([coords[0], coords[1]])
           } else {
-            console.log("No geocoding results found")
             resolve(null)
           }
         })
@@ -208,8 +204,6 @@ export async function geocodeAddressEnhanced(
       searchQueries.push(`${province}, Türkiye`)
     }
 
-    console.log("Enhanced geocoding queries:", searchQueries)
-
     // Try each query until we get a result
     for (const query of searchQueries) {
       try {
@@ -243,8 +237,6 @@ export async function geocodeAddressEnhanced(
                   houseNumber: firstGeoObject.getPremiseNumber() || "",
                 }
 
-                console.log(`Found result for query "${query}":`, { coords, details })
-
                 resolve({
                   coords: [coords[0], coords[1]],
                   details,
@@ -268,7 +260,6 @@ export async function geocodeAddressEnhanced(
       }
     }
 
-    console.log("No results found for any query")
     return null
   } catch (error) {
     console.error("Error in enhanced geocoding:", error)

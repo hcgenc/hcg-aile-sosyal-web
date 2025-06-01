@@ -40,34 +40,49 @@ export default function ServiceListPage() {
     setIsLoading(true)
 
     try {
-      const { data, error } = await supabase
-        .from("addresses")
-        .select(`
-          *,
-          main_categories(name),
-          sub_categories(name)
-        `)
-        .order("first_name")
+      // Ana adres verilerini proxy üzerinden al
+      const addressResult = await supabase.select("addresses", {
+        select: "*",
+        orderBy: { column: "first_name", ascending: true }
+      })
 
-      if (error) throw error
+      if (addressResult.error) throw addressResult.error
 
-      if (data) {
-        const formattedAddresses = data.map((item) => ({
-          id: item.id,
-          latitude: item.latitude,
-          longitude: item.longitude,
-          firstName: item.first_name,
-          lastName: item.last_name,
-          province: item.province,
-          district: item.district,
-          neighborhood: item.neighborhood,
-          address: item.address,
-          mainCategoryId: item.main_category_id,
-          subCategoryId: item.sub_category_id,
-          mainCategoryName: item.main_categories?.name,
-          subCategoryName: item.sub_categories?.name,
-          createdAt: item.created_at,
-        }))
+      if (addressResult.data) {
+        // Kategorileri ayrı ayrı al
+        const mainCategoriesResult = await supabase.select("main_categories", {
+          select: "*"
+        })
+        
+        const subCategoriesResult = await supabase.select("sub_categories", {
+          select: "*"
+        })
+
+        const mainCategories = mainCategoriesResult.data || []
+        const subCategories = subCategoriesResult.data || []
+
+        const formattedAddresses = addressResult.data.map((item) => {
+          // Manuel olarak kategori isimlerini bul
+          const mainCategory = mainCategories.find(cat => cat.id === item.main_category_id)
+          const subCategory = subCategories.find(cat => cat.id === item.sub_category_id)
+
+          return {
+            id: item.id,
+            latitude: item.latitude,
+            longitude: item.longitude,
+            firstName: item.first_name,
+            lastName: item.last_name,
+            province: item.province,
+            district: item.district,
+            neighborhood: item.neighborhood,
+            address: item.address,
+            mainCategoryId: item.main_category_id,
+            subCategoryId: item.sub_category_id,
+            mainCategoryName: mainCategory?.name,
+            subCategoryName: subCategory?.name,
+            createdAt: item.created_at,
+          }
+        })
 
         setAddresses(formattedAddresses)
       }

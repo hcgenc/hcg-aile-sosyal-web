@@ -147,8 +147,6 @@ export default function AddressAddPage() {
       const result = await geocodeAddressEnhanced(province.trim(), district.trim(), neighborhood.trim(), address.trim())
 
       if (result && result.coords) {
-        console.log("Geocoding successful:", result)
-
         // Update coordinates
         setCoordinates(result.coords)
         setLatitude(result.coords[0].toString())
@@ -178,12 +176,8 @@ export default function AddressAddPage() {
           description: "Adres bulundu ve haritada gösterildi.",
         })
       } else {
-        console.log("No geocoding results found")
-
         // Try a simpler search with just the province
         if (province.trim()) {
-          console.log("Trying fallback search with province only:", province.trim())
-
           const fallbackResult = await geocodeAddress(`${province.trim()}, Türkiye`)
 
           if (fallbackResult) {
@@ -243,8 +237,6 @@ export default function AddressAddPage() {
   // Harita tıklama olayı - useCallback ile memoize ediyoruz
   const handleMapClick = useCallback(
     async (coords: [number, number]) => {
-      console.log("Map clicked at coordinates:", coords)
-
       setCoordinates(coords)
       setLatitude(coords[0].toString())
       setLongitude(coords[1].toString())
@@ -254,8 +246,6 @@ export default function AddressAddPage() {
         const addressDetails = await reverseGeocode(coords)
 
         if (addressDetails) {
-          console.log("Reverse geocoding result:", addressDetails)
-
           // Sadece boş alanları doldur
           if (!province.trim() && addressDetails.province) {
             setProvince(addressDetails.province)
@@ -282,7 +272,6 @@ export default function AddressAddPage() {
 
   // Marker sürükleme olayı - useCallback ile memoize ediyoruz
   const handleMarkerDrag = useCallback((coords: [number, number]) => {
-    console.log("Marker dragged to coordinates:", coords)
     setCoordinates(coords)
     setLatitude(coords[0].toString())
     setLongitude(coords[1].toString())

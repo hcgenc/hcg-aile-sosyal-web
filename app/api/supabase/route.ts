@@ -127,14 +127,24 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           )
         }
+        
+        // UPDATE işlemi için filter zorunlu (güvenlik)
+        if (!filter || Object.keys(filter).length === 0) {
+          return NextResponse.json(
+            { error: 'Filters are required for UPDATE operations for security' }, 
+            { status: 400 }
+          )
+        }
+        
         query = query.update(data)
         
         // Apply filters for update
-        if (filter) {
-          Object.keys(filter).forEach(key => {
-            query = query.eq(key, filter[key])
-          })
-        }
+        Object.keys(filter).forEach(key => {
+          const value = filter[key]
+          if (value !== undefined && value !== null) {
+            query = query.eq(key, value)
+          }
+        })
         
         if (select) {
           query = query.select(select)
@@ -142,13 +152,25 @@ export async function POST(request: NextRequest) {
         break
         
       case 'DELETE':
-        // Apply filters for delete
-        if (filter) {
-          Object.keys(filter).forEach(key => {
-            query = query.eq(key, filter[key])
-          })
+        // DELETE işlemi için filter zorunlu (güvenlik)
+        if (!filter || Object.keys(filter).length === 0) {
+          return NextResponse.json(
+            { error: 'Filters are required for DELETE operations for security' }, 
+            { status: 400 }
+          )
         }
+        
+        // Apply delete operation first
         query = query.delete()
+        
+        // Then apply filters
+        Object.keys(filter).forEach(key => {
+          const value = filter[key]
+          if (value !== undefined && value !== null) {
+            query = query.eq(key, value)
+          }
+        })
+        
         break
         
       case 'UPSERT':
@@ -174,7 +196,6 @@ export async function POST(request: NextRequest) {
     const result = await query
     
     if (result.error) {
-      console.error('Supabase error:', result.error)
       return NextResponse.json(
         { error: result.error.message, details: result.error }, 
         { status: 400 }
@@ -188,7 +209,6 @@ export async function POST(request: NextRequest) {
     })
     
   } catch (error) {
-    console.error('Supabase proxy error:', error)
     return NextResponse.json(
       { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' }, 
       { status: 500 }
@@ -225,7 +245,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: result.data })
     
   } catch (error) {
-    console.error('Supabase proxy GET error:', error)
     return NextResponse.json(
       { error: 'Internal server error' }, 
       { status: 500 }
