@@ -9,6 +9,13 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  webpack: (config, { isServer }) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': new URL('.', import.meta.url).pathname,
+    }
+    return config
+  },
   async headers() {
     return [
       {
