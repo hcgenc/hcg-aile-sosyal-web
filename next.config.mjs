@@ -45,7 +45,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Access-Control-Allow-Origin',
-            value: process.env.NODE_ENV === 'production' ? process.env.NEXT_PUBLIC_BASE_URL || 'https://yourdomain.com' : '*',
+            value: process.env.NODE_ENV === 'production' ? process.env.BASE_URL || '' : '*',
           },
           {
             key: 'Access-Control-Allow-Methods',
