@@ -1,11 +1,8 @@
 'use client'
 
-// CONNECTION STATUS CONTEXT
-// Sunucu bağlantısı ve app durumu takibi için
-// Realtime subscription ile anlık güncelleme
-// Bakım modu kaldırıldı - sadece bağlantı kesildi/bağlandı
 
-import React, { createContext, useContext, useState, useEffect } from 'react'
+
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react'
 
 type ConnectionStatus = 'connected' | 'disconnected' | 'checking'
 
@@ -42,16 +39,24 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
     disconnectReason: undefined as string | undefined
   })
 
+  // Debounce refs for stable connection handling
+  const disconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const lastConnectionTimeRef = useRef<number>(Date.now())
+  const consecutiveErrorsRef = useRef<number>(0)
+
   // Network connectivity check
   useEffect(() => {
     const handleOnline = () => {
+      console.log('🌐 Network back online')
       setIsOnline(true)
+      consecutiveErrorsRef.current = 0
       if (status === 'disconnected') {
         checkConnection()
       }
     }
 
     const handleOffline = () => {
+      console.log('🌐 Network offline detected')
       setIsOnline(false)
       setStatus('disconnected')
       setAppStatus(prev => ({
@@ -72,30 +77,100 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
     }
   }, [status])
 
+  // Debounced disconnect function
+  const handleDisconnect = (reason: string, force: boolean = false) => {
+    // Clear any existing timeout
+    if (disconnectTimeoutRef.current) {
+      clearTimeout(disconnectTimeoutRef.current)
+    }
+
+    // If this is a forced disconnect (like app inactive), apply immediately
+    if (force) {
+      console.log('🔴 Forced disconnect:', reason)
+      setStatus('disconnected')
+      setAppStatus(prev => ({
+        ...prev,
+        disconnectReason: reason
+      }))
+      return
+    }
+
+    // For temporary issues, wait 2 seconds before showing disconnected (reduced for debugging)
+    console.log('⚠️ Potential disconnect detected:', reason)
+    disconnectTimeoutRef.current = setTimeout(() => {
+      const timeSinceLastConnection = Date.now() - lastConnectionTimeRef.current
+      
+      // Only show disconnected if we haven't had a successful connection in the last 2 seconds
+      if (timeSinceLastConnection > 2000) {
+        console.log('🔴 Confirmed disconnect after timeout:', reason)
+        setStatus('disconnected')
+        setAppStatus(prev => ({
+          ...prev,
+          disconnectReason: reason
+        }))
+      } else {
+        console.log('✅ Connection recovered before timeout, ignoring temporary issue')
+      }
+    }, 2000) // 2 second delay for debugging
+  }
+
+  // Handle successful connection
+  const handleConnect = () => {
+    // Clear any pending disconnect timeout
+    if (disconnectTimeoutRef.current) {
+      clearTimeout(disconnectTimeoutRef.current)
+      disconnectTimeoutRef.current = null
+    }
+
+    lastConnectionTimeRef.current = Date.now()
+    consecutiveErrorsRef.current = 0
+    
+    if (status !== 'connected') {
+      console.log('✅ Connection restored')
+      setStatus('connected')
+      setAppStatus(prev => ({
+        ...prev,
+        disconnectReason: undefined
+      }))
+    }
+  }
+
   // Realtime subscription setup
   useEffect(() => {
     let eventSource: EventSource | null = null
     let retryTimeout: NodeJS.Timeout | null = null
+    let heartbeatTimeout: NodeJS.Timeout | null = null
 
     const setupRealtimeConnection = () => {
+      console.log('🔄 Setting up realtime connection...')
+      
       // Server-Sent Events for realtime app status updates
       eventSource = new EventSource('/api/app-status-stream')
       
+      // Reset heartbeat timeout
+      const resetHeartbeat = () => {
+        if (heartbeatTimeout) clearTimeout(heartbeatTimeout)
+        heartbeatTimeout = setTimeout(() => {
+          console.log('💔 Heartbeat timeout - no data received in 20 seconds')
+          consecutiveErrorsRef.current += 1
+          if (consecutiveErrorsRef.current >= 2) {
+            handleDisconnect('Connection timeout', false)
+          }
+        }, 20000) // 20 second timeout (reduced from 30)
+      }
+
       eventSource.onopen = () => {
         console.log('✅ Realtime connection established')
-        if (status === 'disconnected') {
-          setStatus('connected')
-          // Bağlantı geri geldiğinde disconnectReason'ı temizle
-          setAppStatus(prev => ({
-            ...prev,
-            disconnectReason: undefined
-          }))
-        }
+        handleConnect()
+        resetHeartbeat()
       }
 
       eventSource.onmessage = (event) => {
+        resetHeartbeat() // Reset timeout on any message
+        
         try {
           const data = JSON.parse(event.data)
+          console.log('📨 Received realtime data:', data.type)
           
           if (data.type === 'app_status_update') {
             setAppStatus({
@@ -105,49 +180,56 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
               disconnectReason: data.status.isActive ? undefined : data.status.reason
             })
             
-            // Tüm inactive durumları disconnected olarak göster
-            setStatus(data.status.isActive ? 'connected' : 'disconnected')
+            if (!data.status.isActive) {
+              // App actually inactive - force disconnect
+              handleDisconnect(data.status.reason || 'App is inactive', true)
+            } else {
+              handleConnect()
+            }
           } else if (data.type === 'connection_established') {
-            // Bağlantı kuruldu, status'u connected yap
             console.log('✅ Realtime connection confirmed')
-            setStatus('connected')
+            handleConnect()
           } else if (data.type === 'connection_error') {
-            // Bağlantı var ama app status check'te hata
             console.warn('⚠️ App status check error:', data.message)
-            setAppStatus(prev => ({
-              ...prev,
-              disconnectReason: 'Status check error'
-            }))
+            consecutiveErrorsRef.current += 1
+            if (consecutiveErrorsRef.current >= 3) {
+              handleDisconnect('Repeated status check errors', false)
+            }
           } else if (data.type === 'heartbeat') {
-            // Keep connection alive (legacy support)
-            setStatus('connected')
+            // Legacy heartbeat support
+            handleConnect()
             setAppStatus(prev => ({ 
               ...prev, 
-              lastChecked: new Date(),
-              disconnectReason: undefined
+              lastChecked: new Date()
             }))
           }
         } catch (error) {
           console.error('Error parsing realtime data:', error)
+          consecutiveErrorsRef.current += 1
         }
       }
 
-      eventSource.onerror = () => {
-        console.log('❌ Realtime connection lost, reconnecting...')
-        setStatus('disconnected')
-        // BURADA İSAKTİVE DEĞERİNİ DEĞİŞTİRMEYELİM!
-        // Sadece disconnectReason set edelim ki kullanıcı bağlantı kesildiğini bilsin
-        setAppStatus(prev => ({
-          ...prev,
-          disconnectReason: 'Realtime connection lost'
-        }))
+      eventSource.onerror = (error) => {
+        console.log('❌ Realtime connection error, will retry...', error)
+        
+        if (heartbeatTimeout) clearTimeout(heartbeatTimeout)
         
         if (eventSource) {
           eventSource.close()
         }
         
-        // Retry connection after 3 seconds
-        retryTimeout = setTimeout(setupRealtimeConnection, 3000)
+        consecutiveErrorsRef.current += 1
+        
+        // Only show disconnect for persistent errors
+        if (consecutiveErrorsRef.current >= 2) {
+          handleDisconnect('Realtime connection lost', false)
+        }
+        
+        // Retry connection with exponential backoff
+        const retryDelay = Math.min(3000 * Math.pow(1.5, consecutiveErrorsRef.current - 1), 15000)
+        console.log(`🔄 Retrying connection in ${retryDelay}ms (attempt ${consecutiveErrorsRef.current})`)
+        
+        retryTimeout = setTimeout(setupRealtimeConnection, retryDelay)
       }
     }
 
@@ -163,51 +245,57 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
       if (retryTimeout) {
         clearTimeout(retryTimeout)
       }
+      if (heartbeatTimeout) {
+        clearTimeout(heartbeatTimeout)
+      }
     }
   }, [isOnline])
 
   // App status check function (for manual retry)
   const checkConnection = async () => {
+    console.log('🔍 Starting connection check...')
+    
     if (!isOnline) {
-      setStatus('disconnected')
-      setAppStatus(prev => ({
-        ...prev,
-        disconnectReason: 'Network offline'
-      }))
+      console.log('❌ Network offline, forcing disconnect')
+      handleDisconnect('Network offline', true)
       return
     }
 
     setStatus('checking')
+    console.log('⏳ Connection status set to checking...')
 
     try {
       // Test basic connectivity through API proxy
+      console.log('🏥 Testing health endpoint...')
       const connectivityTest = await fetch('/api/health', {
         method: 'GET',
-        cache: 'no-cache'
+        cache: 'no-cache',
+        signal: AbortSignal.timeout(5000) // 5 second timeout (reduced)
       })
 
       if (!connectivityTest.ok) {
-        setStatus('disconnected')
-        setAppStatus(prev => ({
-          ...prev,
-          disconnectReason: 'Health check failed'
-        }))
+        console.log('❌ Health check failed:', connectivityTest.status)
+        handleDisconnect('Health check failed', false)
         return
       }
 
+      console.log('✅ Health check passed')
+
       // Check app status - önce realtime olmayan direct check yapalım
       try {
+        console.log('📋 Checking app status...')
         const appStatusResponse = await fetch('/api/app-control', {
           method: 'GET',
           cache: 'no-cache',
+          signal: AbortSignal.timeout(5000), // 5 second timeout (reduced)
           headers: {
             'Content-Type': 'application/json'
           }
         })
 
         if (appStatusResponse.status === 503) {
-          // App is inactive
-          setStatus('disconnected')
+          // App is inactive - force disconnect
+          console.log('🔴 App is inactive (503)')
           const errorData = await appStatusResponse.json()
           setAppStatus({
             isActive: false,
@@ -215,8 +303,10 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
             lastChecked: new Date(),
             disconnectReason: errorData.reason
           })
+          handleDisconnect(errorData.reason || 'App is inactive', true)
           return
         } else if (appStatusResponse.ok) {
+          console.log('✅ App status check successful')
           const data = await appStatusResponse.json()
           setAppStatus({
             isActive: data.status.isActive,
@@ -225,40 +315,66 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
             disconnectReason: data.status.isActive ? undefined : data.status.reason
           })
           
-          // App status'a göre connection status'u set et
-          setStatus(data.status.isActive ? 'connected' : 'disconnected')
+          if (!data.status.isActive) {
+            console.log('🔴 App is inactive per status check')
+            handleDisconnect(data.status.reason || 'App is inactive', true)
+          } else {
+            console.log('✅ App is active, connecting...')
+            handleConnect()
+          }
           return
+        } else {
+          console.warn('⚠️ Unexpected app status response:', appStatusResponse.status)
+          // Fall through to basic connectivity success
         }
       } catch (error) {
-        console.warn('App status check failed, continuing with basic connectivity:', error)
+        console.warn('⚠️ App status check failed, continuing with basic connectivity:', error)
+        // Fall through to basic connectivity success
       }
 
       // If we reach here, basic connectivity is working
-      setStatus('connected')
+      console.log('✅ Basic connectivity confirmed, setting connected')
+      handleConnect()
       setAppStatus(prev => ({ 
         ...prev, 
-        lastChecked: new Date(),
-        disconnectReason: undefined
+        lastChecked: new Date()
       }))
 
     } catch (error) {
-      console.error('Connection check failed:', error)
-      setStatus('disconnected')
-      setAppStatus(prev => ({
-        ...prev,
-        disconnectReason: 'Connection check failed'
-      }))
+      console.error('❌ Connection check failed:', error)
+      handleDisconnect('Connection check failed', false)
     }
   }
 
   // Retry connection
   const retryConnection = () => {
+    consecutiveErrorsRef.current = 0 // Reset error count on manual retry
     checkConnection()
   }
 
   // Initial connection check (only once)
   useEffect(() => {
-    checkConnection()
+    // DEBUG: Bypass initial check for immediate connection
+    const BYPASS_INITIAL_CHECK = true
+    
+    if (BYPASS_INITIAL_CHECK) {
+      console.log('🚀 BYPASSING initial check - connecting immediately')
+      setStatus('connected')
+      setAppStatus(prev => ({
+        ...prev,
+        isActive: true,
+        lastChecked: new Date()
+      }))
+      return
+    }
+    
+    // Delay initial check to let the app settle
+    const timer = setTimeout(() => {
+      console.log('🚀 Running initial connection check...')
+      checkConnection()
+    }, 1000) // 1 second delay
+
+    return () => clearTimeout(timer)
   }, [])
 
   // Monitor API responses for app inactive status
@@ -282,12 +398,13 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
           }
           
           if (url.includes('/api/') && !url.includes('/api/app-control') && !url.includes('/api/app-status-stream')) {
-            setStatus('disconnected')
+            const errorData = await response.json().catch(() => ({ reason: 'App is inactive' }))
             setAppStatus(prev => ({
               ...prev,
               isActive: false,
-              disconnectReason: 'App is inactive'
+              disconnectReason: errorData.reason || 'App is inactive'
             }))
+            handleDisconnect(errorData.reason || 'App is inactive', true)
           }
         }
         
@@ -295,11 +412,7 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
       } catch (error) {
         // Network error - check if offline
         if (!navigator.onLine) {
-          setStatus('disconnected')
-          setAppStatus(prev => ({
-            ...prev,
-            disconnectReason: 'Network error'
-          }))
+          handleDisconnect('Network error', true)
         }
         throw error
       }
@@ -307,6 +420,15 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
 
     return () => {
       window.fetch = originalFetch
+    }
+  }, [])
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (disconnectTimeoutRef.current) {
+        clearTimeout(disconnectTimeoutRef.current)
+      }
     }
   }, [])
 

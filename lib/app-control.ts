@@ -25,7 +25,7 @@ let appStatusCache: {
   lastChecked: 0
 }
 
-const CACHE_DURATION = 5000 // 5 saniye cache
+const CACHE_DURATION = 10000 // 10 saniye cache (daha uzun)
 
 export interface AppStatus {
   isActive: boolean
@@ -57,6 +57,16 @@ export async function checkAppStatus(): Promise<AppStatus> {
 
     if (error) {
       console.error('App status check error:', error)
+      
+      // Cache varsa ve çok eski değilse onu kullan
+      if (appStatusCache.lastChecked > 0 && (now - appStatusCache.lastChecked) < 60000) {
+        console.log('Using cached app status due to database error')
+        return {
+          isActive: appStatusCache.isActive,
+          reason: appStatusCache.reason
+        }
+      }
+      
       // Hata durumunda güvenli tarafta kal (aktif olarak devam et)
       return { isActive: true, reason: 'Status check failed - defaulting to active' }
     }
@@ -77,6 +87,16 @@ export async function checkAppStatus(): Promise<AppStatus> {
 
   } catch (error) {
     console.error('App status check exception:', error)
+    
+    // Cache varsa ve çok eski değilse onu kullan
+    if (appStatusCache.lastChecked > 0 && (now - appStatusCache.lastChecked) < 60000) {
+      console.log('Using cached app status due to exception')
+      return {
+        isActive: appStatusCache.isActive,
+        reason: appStatusCache.reason
+      }
+    }
+    
     return { isActive: true, reason: 'Exception occurred - defaulting to active' }
   }
 }
