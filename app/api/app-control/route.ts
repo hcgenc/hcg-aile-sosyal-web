@@ -9,55 +9,79 @@ import { rateLimit, getClientIP } from '@/lib/security'
 export async function GET(request: NextRequest) {
   try {
     // Rate limiting kontrol
-    const rateLimitResult = rateLimit({ windowMs: 60000, maxRequests: 10 })(request) // 10 requests per minute
+    const rateLimitResult = rateLimit({ windowMs: 60000, maxRequests: 20 })(request) // Daha fazla request (public endpoint)
     
     if (!rateLimitResult.success) {
       return NextResponse.json(
         { 
-          error: 'Rate limit exceeded for app control API',
+          error: 'Rate limit exceeded for app status check',
           retryAfter: Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000)
         },
         { status: 429 }
       )
     }
 
-    // JWT token kontrolü
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json(
-        { error: 'Authorization header required' },
-        { status: 401 }
-      )
-    }
-
-    const token = authHeader.replace('Bearer ', '')
-    const tokenData = await verifyToken(token)
-    
-    if (!tokenData) {
-      return NextResponse.json(
-        { error: 'Invalid or expired token' },
-        { status: 401 }
-      )
-    }
-
-    // Admin kontrolü
-    if (tokenData.role !== 'editor') {
-      return NextResponse.json(
-        { error: 'Access denied: Editor role required' },
-        { status: 403 }
-      )
-    }
-
-    // App status bilgisini döndür
+    // App status bilgisini al
     const status = await checkAppStatus()
     
+    // Inactive app ise 503 döndür
+    if (!status.isActive) {
+      return NextResponse.json(
+        {
+          error: 'Application is currently inactive',
+          reason: status.reason || 'App is temporarily unavailable',
+          code: 'APP_INACTIVE',
+          timestamp: new Date().toISOString()
+        },
+        { 
+          status: 503,
+          headers: {
+            'Retry-After': '300',
+            'X-App-Status': 'inactive'
+          }
+        }
+      )
+    }
+
+    // JWT token kontrolü (opsiyonel - admin detayları için)
+    const authHeader = request.headers.get('authorization')
+    let isAdmin = false
+    let tokenData = null
+    
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.replace('Bearer ', '')
+      try {
+        tokenData = await verifyToken(token)
+        isAdmin = tokenData?.role === 'editor'
+      } catch (error) {
+        // Token invalid ama app status bilgisini yine de döndür
+      }
+    }
+
+    // Admin ise detaylı bilgi döndür
+    if (isAdmin && tokenData) {
+      return NextResponse.json({
+        success: true,
+        status: {
+          isActive: status.isActive,
+          reason: status.reason,
+          updatedAt: status.updatedAt,
+          updatedBy: status.updatedBy
+        },
+        admin: {
+          username: tokenData.username,
+          role: tokenData.role
+        },
+        timestamp: new Date().toISOString()
+      })
+    }
+
+    // Normal user için basit yanıt
     return NextResponse.json({
       success: true,
       status: {
         isActive: status.isActive,
-        reason: status.reason,
-        updatedAt: status.updatedAt,
-        updatedBy: status.updatedBy
+        reason: status.isActive ? 'Application is active' : status.reason
       },
       timestamp: new Date().toISOString()
     })

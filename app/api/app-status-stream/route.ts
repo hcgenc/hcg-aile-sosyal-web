@@ -43,16 +43,36 @@ export async function GET(request: NextRequest) {
           
           // Send error status
           const errorData = JSON.stringify({
-            type: 'heartbeat',
-            status: 'error',
+            type: 'connection_error',
+            message: 'Unable to check app status',
             timestamp: new Date().toISOString()
           })
           controller.enqueue(`data: ${errorData}\n\n`)
         }
       }
 
-      // Send initial status
-      sendStatusUpdate()
+      // Send connection established message
+      const sendConnectionEstablished = () => {
+        const data = JSON.stringify({
+          type: 'connection_established',
+          message: 'Realtime connection active',
+          timestamp: new Date().toISOString()
+        })
+        controller.enqueue(`data: ${data}\n\n`)
+      }
+
+      // Send immediate status update when connection is established
+      const initialize = async () => {
+        try {
+          sendConnectionEstablished()
+          await sendStatusUpdate() // İlk bağlantıda hemen status gönder
+        } catch (error) {
+          console.error('Error initializing SSE connection:', error)
+        }
+      }
+
+      // Initialize connection
+      initialize()
 
       // Set up interval for regular updates
       interval = setInterval(sendStatusUpdate, 10000) // 10 seconds

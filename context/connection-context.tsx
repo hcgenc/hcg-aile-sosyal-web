@@ -56,8 +56,7 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
       setStatus('disconnected')
       setAppStatus(prev => ({
         ...prev,
-        isActive: false,
-        disconnectReason: undefined
+        disconnectReason: 'Network offline'
       }))
     }
 
@@ -86,6 +85,11 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
         console.log('✅ Realtime connection established')
         if (status === 'disconnected') {
           setStatus('connected')
+          // Bağlantı geri geldiğinde disconnectReason'ı temizle
+          setAppStatus(prev => ({
+            ...prev,
+            disconnectReason: undefined
+          }))
         }
       }
 
@@ -103,10 +107,25 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
             
             // Tüm inactive durumları disconnected olarak göster
             setStatus(data.status.isActive ? 'connected' : 'disconnected')
-          } else if (data.type === 'heartbeat') {
-            // Keep connection alive
+          } else if (data.type === 'connection_established') {
+            // Bağlantı kuruldu, status'u connected yap
+            console.log('✅ Realtime connection confirmed')
             setStatus('connected')
-            setAppStatus(prev => ({ ...prev, lastChecked: new Date() }))
+          } else if (data.type === 'connection_error') {
+            // Bağlantı var ama app status check'te hata
+            console.warn('⚠️ App status check error:', data.message)
+            setAppStatus(prev => ({
+              ...prev,
+              disconnectReason: 'Status check error'
+            }))
+          } else if (data.type === 'heartbeat') {
+            // Keep connection alive (legacy support)
+            setStatus('connected')
+            setAppStatus(prev => ({ 
+              ...prev, 
+              lastChecked: new Date(),
+              disconnectReason: undefined
+            }))
           }
         } catch (error) {
           console.error('Error parsing realtime data:', error)
@@ -116,10 +135,11 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
       eventSource.onerror = () => {
         console.log('❌ Realtime connection lost, reconnecting...')
         setStatus('disconnected')
+        // BURADA İSAKTİVE DEĞERİNİ DEĞİŞTİRMEYELİM!
+        // Sadece disconnectReason set edelim ki kullanıcı bağlantı kesildiğini bilsin
         setAppStatus(prev => ({
           ...prev,
-          isActive: false,
-          disconnectReason: undefined
+          disconnectReason: 'Realtime connection lost'
         }))
         
         if (eventSource) {
@@ -152,8 +172,7 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
       setStatus('disconnected')
       setAppStatus(prev => ({
         ...prev,
-        isActive: false,
-        disconnectReason: undefined
+        disconnectReason: 'Network offline'
       }))
       return
     }
@@ -171,57 +190,53 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
         setStatus('disconnected')
         setAppStatus(prev => ({
           ...prev,
-          isActive: false,
-          disconnectReason: undefined
+          disconnectReason: 'Health check failed'
         }))
         return
       }
 
-      // Check app status if user is logged in
-      const token = localStorage.getItem('auth_token')
-      if (token) {
-        try {
-          const appStatusResponse = await fetch('/api/app-control', {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          })
-
-          if (appStatusResponse.status === 503) {
-            // App is inactive - treat as disconnected
-            setStatus('disconnected')
-            const errorData = await appStatusResponse.json()
-            setAppStatus({
-              isActive: false,
-              reason: errorData.reason,
-              lastChecked: new Date(),
-              disconnectReason: errorData.reason
-            })
-            return
-          } else if (appStatusResponse.ok) {
-            const data = await appStatusResponse.json()
-            setAppStatus({
-              isActive: data.status.isActive,
-              reason: data.status.reason,
-              lastChecked: new Date(),
-              disconnectReason: data.status.isActive ? undefined : data.status.reason
-            })
-            
-            // Inactive app status'u da disconnected olarak göster
-            setStatus(data.status.isActive ? 'connected' : 'disconnected')
-            return
+      // Check app status - önce realtime olmayan direct check yapalım
+      try {
+        const appStatusResponse = await fetch('/api/app-control', {
+          method: 'GET',
+          cache: 'no-cache',
+          headers: {
+            'Content-Type': 'application/json'
           }
-        } catch (error) {
-          // Non-admin user or other error, continue with normal check
+        })
+
+        if (appStatusResponse.status === 503) {
+          // App is inactive
+          setStatus('disconnected')
+          const errorData = await appStatusResponse.json()
+          setAppStatus({
+            isActive: false,
+            reason: errorData.reason,
+            lastChecked: new Date(),
+            disconnectReason: errorData.reason
+          })
+          return
+        } else if (appStatusResponse.ok) {
+          const data = await appStatusResponse.json()
+          setAppStatus({
+            isActive: data.status.isActive,
+            reason: data.status.reason,
+            lastChecked: new Date(),
+            disconnectReason: data.status.isActive ? undefined : data.status.reason
+          })
+          
+          // App status'a göre connection status'u set et
+          setStatus(data.status.isActive ? 'connected' : 'disconnected')
+          return
         }
+      } catch (error) {
+        console.warn('App status check failed, continuing with basic connectivity:', error)
       }
 
-      // If we reach here, everything is working
+      // If we reach here, basic connectivity is working
       setStatus('connected')
       setAppStatus(prev => ({ 
         ...prev, 
-        isActive: true, 
         lastChecked: new Date(),
         disconnectReason: undefined
       }))
@@ -231,8 +246,7 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
       setStatus('disconnected')
       setAppStatus(prev => ({
         ...prev,
-        isActive: false,
-        disconnectReason: undefined
+        disconnectReason: 'Connection check failed'
       }))
     }
   }
@@ -272,7 +286,7 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
             setAppStatus(prev => ({
               ...prev,
               isActive: false,
-              disconnectReason: undefined
+              disconnectReason: 'App is inactive'
             }))
           }
         }
@@ -284,8 +298,7 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
           setStatus('disconnected')
           setAppStatus(prev => ({
             ...prev,
-            isActive: false,
-            disconnectReason: undefined
+            disconnectReason: 'Network error'
           }))
         }
         throw error
