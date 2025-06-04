@@ -5,7 +5,9 @@ import { SideMenu } from "@/components/side-menu"
 import { MapProvider } from "@/context/map-context"
 import { SupabaseProvider } from "@/context/supabase-context"
 import { AuthProvider } from "@/context/auth-context"
+import { ConnectionProvider } from "@/context/connection-context"
 import { AuthGuard } from "@/components/auth-guard"
+import { ConnectionStatus } from "@/components/connection-status"
 import "./globals.css"
 import "./yandex-maps.css"
 
@@ -26,13 +28,16 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
           <SupabaseProvider>
             <AuthProvider>
-              <AuthGuard>
-                <MapProvider>
-                  <SideMenu />
-                  {children}
-                  <Toaster />
-                </MapProvider>
-              </AuthGuard>
+              <ConnectionProvider>
+                <AuthGuard>
+                  <MapProvider>
+                    <SideMenu />
+                    {children}
+                    <Toaster />
+                    <ConnectionStatus />
+                  </MapProvider>
+                </AuthGuard>
+              </ConnectionProvider>
             </AuthProvider>
           </SupabaseProvider>
         </ThemeProvider>

@@ -33,11 +33,20 @@ class SupabaseProxy {
 
   private async makeRequest(payload: any): Promise<SupabaseResponse> {
     try {
+      // Get authentication token from localStorage
+      const token = localStorage.getItem("auth_token")
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      
+      // Add authorization header if token exists
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
       const response = await fetch(this.apiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(payload),
       })
 

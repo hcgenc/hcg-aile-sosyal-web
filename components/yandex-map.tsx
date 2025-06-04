@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useEffect, useRef, useState } from "react"
-import { loadYandexMapsScript } from "@/lib/yandex-maps"
+import { loadYandexMapsScript, testYandexApiKeyFetch } from "@/lib/yandex-maps"
 import type { MapMode } from "@/context/map-context"
 
 interface YandexMapProps {
@@ -51,6 +51,9 @@ export function YandexMap({
 
     const initMap = async () => {
       try {
+        // Test API key fetching first
+        await testYandexApiKeyFetch()
+        
         // Load Yandex Maps API
         await loadYandexMapsScript()
         ymapsRef.current = window.ymaps

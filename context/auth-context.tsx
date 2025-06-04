@@ -41,18 +41,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Check if user is logged in on app start
+  // Check if user is logged in on app start - simplified approach
   useEffect(() => {
-    const checkAuth = () => {
+    const checkAuth = async () => {
+      try {
+        const token = localStorage.getItem("auth_token")
       const userData = localStorage.getItem("user")
-      if (userData) {
-        try {
+        
+        if (token && userData) {
+          // Simply trust the stored user data if token exists
+          // Server will validate the token on API requests
           const parsedUser = JSON.parse(userData)
           setUser(parsedUser)
-        } catch (error) {
-          console.error("Error parsing user data:", error)
-          localStorage.removeItem("user")
         }
+      } catch (error) {
+        console.error("Error loading auth data:", error)
+        // Clear invalid data
+        localStorage.removeItem("auth_token")
+        localStorage.removeItem("user")
       }
       setIsLoading(false)
     }
@@ -60,75 +66,56 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     checkAuth()
   }, [])
 
-  // Simple password verification (in production, use proper hashing)
-  const verifyPassword = (inputPassword: string, storedPassword: string): boolean => {
-    // For demo purposes, we'll use simple comparison
-    // In production, use bcrypt or similar
-    return inputPassword === "password123" || inputPassword === storedPassword
-  }
-
   const login = async (username: string, password: string): Promise<boolean> => {
     if (!supabase) return false
 
     try {
       setIsLoading(true)
 
-      // Query user from database via proxy
-      const result = await supabase.selectSingle("users", {
-        select: "*",
-        filter: { username: username }
+      // Call secure login API endpoint
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password })
       })
 
-      if (result.error || !result.data) {
+      const result = await response.json()
+
+      if (!response.ok) {
         toast({
           title: "Hata",
-          description: "Kullanıcı adı veya şifre hatalı.",
+          description: result.error || "Giriş yapılırken bir sorun oluştu.",
           variant: "destructive",
         })
         return false
       }
 
-      const userData = result.data
+      if (result.token && result.user) {
+        // Use the user data from API response with fullName from database
+        const userWithMissingFields = {
+          ...result.user,
+          createdAt: new Date().toISOString() // Add current date if not provided
+        }
 
-      // Verify password
-      if (!verifyPassword(password, userData.password)) {
+        // Store JWT token and user data
+        localStorage.setItem("auth_token", result.token)
+        localStorage.setItem("user", JSON.stringify(userWithMissingFields))
+        setUser(userWithMissingFields)
+
+        // Log the login action
+        await logActionInternal(userWithMissingFields, "LOGIN", "Kullanıcı sisteme giriş yaptı")
+
         toast({
-          title: "Hata",
-          description: "Kullanıcı adı veya şifre hatalı.",
-          variant: "destructive",
+          title: "Başarılı",
+          description: `Hoş geldiniz, ${userWithMissingFields.fullName}!`,
         })
-        return false
+
+        return true
       }
 
-      // Create user object
-      const userObj: User = {
-        id: userData.id,
-        username: userData.username,
-        role: userData.role as UserRole,
-        fullName: userData.full_name || userData.username,
-        createdAt: userData.created_at,
-        lastLogin: userData.last_login,
-      }
-
-      // Update last login via proxy
-      await supabase.update("users", 
-        { last_login: new Date().toISOString() }, 
-        { id: userData.id }
-      )
-
-      // Save to localStorage and state
-      localStorage.setItem("user", JSON.stringify(userObj))
-      setUser(userObj)
-
-      // Log the login action
-      await logActionInternal(userObj, "LOGIN", "Kullanıcı sisteme giriş yaptı")
-
-      toast({
-        title: "Başarılı",
-        description: `Hoş geldiniz, ${userObj.fullName}!`,
-      })
-
-      return true
+      return false
     } catch (error) {
       console.error("Login error:", error)
       toast({
@@ -147,8 +134,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await logActionInternal(user, "LOGOUT", "Kullanıcı sistemden çıkış yaptı")
     }
 
+    // Clear all auth data
+    localStorage.removeItem("auth_token")
     localStorage.removeItem("user")
     setUser(null)
+    
     toast({
       title: "Başarılı",
       description: "Başarıyla çıkış yapıldı.",
@@ -170,6 +160,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         "DELETE_ADDRESS",
         "MANAGE_CATEGORIES",
         "VIEW_CATEGORY_MANAGEMENT",
+        "MANAGE_API_KEYS",
+        "VIEW_LOGS"
       ],
     }
 

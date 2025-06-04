@@ -1,5 +1,3 @@
-import { supabaseProxy } from "@/lib/supabase-proxy"
-
 // Track if the script is already loading
 let isLoading = false
 let isLoaded = false
@@ -10,30 +8,59 @@ let cachedApiKey: string | null = null
 async function getYandexApiKey(): Promise<string> {
   // Return cached key if available
   if (cachedApiKey) {
+    console.log("Using cached Yandex API key")
     return cachedApiKey
   }
 
   try {
-    const result = await supabaseProxy.selectSingle("api_keys", {
-      select: "api_key",
-      filter: {
-        service_name: "yandex_maps",
-        is_active: true
-      }
+    console.log("Fetching Yandex API key from Supabase via proxy...")
+    
+    // Get authentication token from localStorage
+    const token = localStorage.getItem("auth_token")
+    if (!token) {
+      console.warn("No authentication token found, cannot fetch API key")
+      throw new Error("Authentication required to fetch API key")
+    }
+
+    // Make authenticated API call
+    const response = await fetch('/api/supabase', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        table: 'api_keys',
+        method: 'SELECT',
+        select: 'api_key',
+        filter: {
+          service_name: 'yandex_maps',
+          is_active: true
+        },
+        single: true
+      })
     })
+
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status}`)
+    }
+
+    const result = await response.json()
+    console.log("Supabase proxy result:", result)
 
     if (result.error) {
       console.error("Error fetching Yandex API key from Supabase:", result.error)
-      throw new Error(`Supabase API key fetch failed: ${result.error.message}`)
+      throw new Error(`Supabase API key fetch failed: ${result.error}`)
     }
 
     if (!result.data?.api_key) {
       console.error("No active Yandex API key found in Supabase")
+      console.log("Result data:", result.data)
       throw new Error("No active Yandex Maps API key found in database. Please add an API key in the admin panel.")
     }
 
     cachedApiKey = result.data.api_key
-    console.log("Successfully loaded Yandex API key from Supabase via proxy")
+    console.log("Successfully loaded Yandex API key from Supabase via proxy:", cachedApiKey ? cachedApiKey.substring(0, 8) + "..." : "null")
     return result.data.api_key
   } catch (error) {
     console.error("Error connecting to Supabase for API key:", error)
@@ -43,75 +70,87 @@ async function getYandexApiKey(): Promise<string> {
 
 // Load Yandex Maps API script
 export async function loadYandexMapsScript(): Promise<void> {
-  // If already loaded, return resolved promise
-  if (isLoaded && window.ymaps) {
+  if (isLoaded) {
     return Promise.resolve()
   }
 
-  // If already loading, return the existing promise
-  if (isLoading && loadPromise) {
+  if (loadPromise) {
     return loadPromise
   }
 
-  // Start loading
-  isLoading = true
-
   loadPromise = new Promise(async (resolve, reject) => {
     try {
+      isLoading = true
+
       // Get API key from Supabase
       const apiKey = await getYandexApiKey()
 
-      // Check if script already exists
-      if (document.querySelector('script[src*="api-maps.yandex.ru"]')) {
-        // Script exists, wait for ymaps to be ready
+      if (!apiKey) {
+        console.warn("No Yandex Maps API key found, using free version")
+        // Try to load without API key for development
+      }
+
+      // Check if already loaded
         if (window.ymaps) {
           isLoaded = true
           resolve()
-        } else {
-          // Wait for ymaps to be ready
-          const checkYmaps = setInterval(() => {
-            if (window.ymaps) {
-              clearInterval(checkYmaps)
-              isLoaded = true
-              resolve()
-            }
-          }, 100)
-
-          // Set timeout to avoid infinite waiting
-          setTimeout(() => {
-            clearInterval(checkYmaps)
-            reject(new Error("Yandex Maps API failed to load within timeout"))
-          }, 10000)
-        }
         return
       }
 
-      // Create script element with API key from Supabase
+      // Create script element
       const script = document.createElement("script")
-      script.src = `https://api-maps.yandex.ru/2.1/?apikey=${apiKey}&lang=tr_TR`
-      script.async = true
-      script.defer = true
+      script.type = "text/javascript"
+      script.src = apiKey 
+        ? `https://api-maps.yandex.ru/2.1/?apikey=${apiKey}&lang=tr_TR`
+        : `https://api-maps.yandex.ru/2.1/?lang=tr_TR`
 
+      // Handle successful load
       script.onload = () => {
-        // Wait for ymaps to be ready
+        console.log("Yandex Maps script loaded, waiting for ymaps.ready()")
+        
+        // Wait for ymaps to be ready with timeout
+        const timeout = setTimeout(() => {
+          console.error("Yandex Maps ymaps.ready() timeout")
+          isLoading = false
+          loadPromise = null
+          reject(new Error("Yandex Maps initialization timeout"))
+        }, 10000) // 10 second timeout
+
+        try {
         window.ymaps.ready(() => {
+            clearTimeout(timeout)
           isLoaded = true
-          console.log("Yandex Maps API loaded successfully with Supabase API key")
+            isLoading = false
+            console.log("Yandex Maps API loaded successfully")
           resolve()
         })
+        } catch (error) {
+          clearTimeout(timeout)
+          isLoading = false
+          loadPromise = null
+          console.error("Error in ymaps.ready():", error)
+          reject(new Error(`Yandex Maps ready error: ${error}`))
+        }
       }
 
+      // Handle loading errors
       script.onerror = (error) => {
         isLoading = false
         loadPromise = null
-        reject(new Error("Failed to load Yandex Maps API"))
+        console.error("Failed to load Yandex Maps script:", error)
+        console.log("Script src was:", script.src)
+        reject(new Error("Failed to load Yandex Maps script - Network error"))
       }
 
+      // Add script to document
       document.head.appendChild(script)
+      console.log("Yandex Maps script added to document head")
+
     } catch (error) {
       isLoading = false
       loadPromise = null
-      reject(new Error(`Failed to get API key: ${error}`))
+      console.error("Error in loadYandexMapsScript:", error)
+      reject(new Error(`Failed to initialize Yandex Maps: ${error}`))
     }
   })
 
@@ -315,16 +354,39 @@ export async function reverseGeocode(coords: [number, number]): Promise<any | nu
 // Function to update API key in Supabase (for admin use)
 export async function updateYandexApiKey(newApiKey: string): Promise<boolean> {
   try {
-    const result = await supabaseProxy.update(
-      "api_keys",
-      {
-        api_key: newApiKey,
-        updated_at: new Date().toISOString(),
+    // Get authentication token from localStorage
+    const token = localStorage.getItem("auth_token")
+    if (!token) {
+      console.error("No authentication token found, cannot update API key")
+      return false
+    }
+
+    // Make authenticated API call
+    const response = await fetch('/api/supabase', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
       },
-      {
-        service_name: "yandex_maps"
-      }
-    )
+      body: JSON.stringify({
+        table: 'api_keys',
+        method: 'UPDATE',
+        data: {
+          api_key: newApiKey,
+          updated_at: new Date().toISOString(),
+        },
+        filter: {
+          service_name: 'yandex_maps'
+        }
+      })
+    })
+
+    if (!response.ok) {
+      console.error("Error updating Yandex API key: API request failed")
+      return false
+    }
+
+    const result = await response.json()
 
     if (result.error) {
       console.error("Error updating Yandex API key:", result.error)
@@ -338,6 +400,48 @@ export async function updateYandexApiKey(newApiKey: string): Promise<boolean> {
   } catch (error) {
     console.error("Error updating API key:", error)
     return false
+  }
+}
+
+// Test function to debug API key fetching
+export async function testYandexApiKeyFetch(): Promise<void> {
+  try {
+    console.log("=== TESTING YANDEX API KEY FETCH ===")
+    
+    // Check if authentication token exists
+    const token = localStorage.getItem("auth_token")
+    if (!token) {
+      console.warn("No authentication token found for testing")
+      return
+    }
+    
+    // Direct API call to test proxy with authentication
+    const directResponse = await fetch('/api/supabase', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        table: 'api_keys',
+        method: 'SELECT',
+        select: 'api_key',
+        filter: {
+          service_name: 'yandex_maps',
+          is_active: true
+        },
+        single: true
+      })
+    })
+    const directData = await directResponse.json()
+    console.log("Direct API response:", directData)
+    
+    // Test API key retrieval
+    const apiKey = await getYandexApiKey()
+    console.log("Retrieved API key:", apiKey ? apiKey.substring(0, 8) + "..." : "null")
+    
+  } catch (error) {
+    console.error("Test failed:", error)
   }
 }
 
