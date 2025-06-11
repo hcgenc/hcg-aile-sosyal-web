@@ -120,6 +120,7 @@ export interface Database {
           password: string
           role: string
           full_name: string | null
+          city: string | null
           created_at: string
           last_login: string | null
         }
@@ -129,6 +130,7 @@ export interface Database {
           password: string
           role?: string
           full_name?: string | null
+          city?: string | null
           created_at?: string
           last_login?: string | null
         }
@@ -138,6 +140,7 @@ export interface Database {
           password?: string
           role?: string
           full_name?: string | null
+          city?: string | null
           created_at?: string
           last_login?: string | null
         }

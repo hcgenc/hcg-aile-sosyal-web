@@ -28,11 +28,21 @@ export function UserMenu() {
   }
 
   const getRoleText = (role: string) => {
-    return role === "editor" ? "Editör" : "Normal Kullanıcı"
+    switch(role) {
+      case "admin": return "Sistem Yöneticisi"
+      case "editor": return "Editör"
+      case "normal": return "Normal Kullanıcı"
+      default: return "Kullanıcı"
+    }
   }
 
   const getRoleColor = (role: string) => {
-    return role === "editor" ? "text-green-600 dark:text-green-400" : "text-blue-600 dark:text-blue-400"
+    switch(role) {
+      case "admin": return "text-red-600 dark:text-red-400"
+      case "editor": return "text-green-600 dark:text-green-400"
+      case "normal": return "text-blue-600 dark:text-blue-400"
+      default: return "text-gray-600 dark:text-gray-400"
+    }
   }
 
   return (
@@ -55,6 +65,9 @@ export function UserMenu() {
               <Shield className="h-3 w-3" />
               <span className={`text-xs font-medium ${getRoleColor(user.role)}`}>{getRoleText(user.role)}</span>
             </div>
+            {user.city && user.role !== 'admin' && (
+              <p className="text-xs text-muted-foreground mt-1">📍 {user.city}</p>
+            )}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

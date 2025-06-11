@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
     // Query user from database
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, username, password, role, full_name')
+      .select('id, username, password, role, full_name, city')
       .eq('username', sanitizedUsername)
       .single()
 
@@ -176,7 +176,8 @@ export async function POST(request: NextRequest) {
         id: user.id,
         username: user.username,
         role: user.role,
-        fullName: user.full_name || user.username
+        fullName: user.full_name || user.username,
+        city: user.city
       }
     })
     

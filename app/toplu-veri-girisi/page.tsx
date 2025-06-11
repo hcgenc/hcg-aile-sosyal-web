@@ -21,6 +21,7 @@ import { geocodeAddressEnhanced } from "@/lib/yandex-maps"
 interface ExcelRow {
   firstName: string
   lastName: string
+  gender?: string
   province: string
   district: string
   neighborhood: string
@@ -160,6 +161,7 @@ export default function BulkDataEntryPage() {
         .map((row, index) => ({
           firstName: (row[headers.indexOf("İsim")] || "").toString().trim(),
           lastName: (row[headers.indexOf("Soyisim")] || "").toString().trim(),
+          gender: (row[headers.indexOf("Cinsiyet")] || "").toString().trim() || undefined,
           province: (row[headers.indexOf("İl")] || "").toString().trim(),
           district: (row[headers.indexOf("İlçe")] || "").toString().trim(),
           neighborhood: (row[headers.indexOf("Mahalle")] || "").toString().trim(),
@@ -258,6 +260,7 @@ export default function BulkDataEntryPage() {
         const result = await supabase.insert("addresses", {
           first_name: row.firstName,
           last_name: row.lastName,
+          gender: row.gender || null,
           province: row.province,
           district: row.district,
           neighborhood: row.neighborhood,
@@ -306,9 +309,9 @@ export default function BulkDataEntryPage() {
   // Download template
   const downloadTemplate = () => {
     const templateData = [
-      ["İsim", "Soyisim", "İl", "İlçe", "Mahalle", "Adres", "Risk Faktörü", "Hizmet Türü"],
-      ["Ahmet", "Yılmaz", "Ankara", "Çankaya", "Kızılay", "Atatürk Bulvarı No:1", "Yaşlı", "Evde Bakım"],
-      ["Fatma", "Demir", "İstanbul", "Kadıköy", "Moda", "Moda Caddesi No:15", "Engelli", "Fizik Tedavi"],
+      ["İsim", "Soyisim", "Cinsiyet", "İl", "İlçe", "Mahalle", "Adres", "Risk Faktörü", "Hizmet Türü"],
+      ["Ahmet", "Yılmaz", "Erkek", "Ankara", "Çankaya", "Kızılay", "Atatürk Bulvarı No:1", "Yaşlı", "Evde Bakım"],
+      ["Fatma", "Demir", "Kadın", "İstanbul", "Kadıköy", "Moda", "Moda Caddesi No:15", "Engelli", "Fiziksel Engelli Desteği"],
     ]
 
     const worksheet = XLSX.utils.aoa_to_sheet(templateData)
@@ -368,7 +371,7 @@ export default function BulkDataEntryPage() {
               <li>Önce şablon dosyasını indirin</li>
               <li>
                 Excel dosyasını doldurun (gerekli sütunlar: İsim, Soyisim, İl, İlçe, Mahalle, Adres, Risk Faktörü,
-                Hizmet Türü)
+                Hizmet Türü; opsiyonel: Cinsiyet)
               </li>
               <li>Dosyayı yükleyin ve verileri kontrol edin</li>
               <li>"Verileri İşle" butonuna tıklayarak kaydetme işlemini başlatın</li>
@@ -484,6 +487,7 @@ export default function BulkDataEntryPage() {
                       <TableHead className="text-gray-200">Durum</TableHead>
                       <TableHead className="text-gray-200">İsim</TableHead>
                       <TableHead className="text-gray-200">Soyisim</TableHead>
+                      <TableHead className="text-gray-200">Cinsiyet</TableHead>
                       <TableHead className="text-gray-200">İl</TableHead>
                       <TableHead className="text-gray-200">İlçe</TableHead>
                       <TableHead className="text-gray-200">Risk Faktörü</TableHead>
@@ -520,6 +524,15 @@ export default function BulkDataEntryPage() {
                         </TableCell>
                         <TableCell className="text-gray-200">{row.firstName}</TableCell>
                         <TableCell className="text-gray-200">{row.lastName}</TableCell>
+                        <TableCell className="text-gray-200">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            row.gender === 'Erkek' ? 'bg-blue-900/50 text-blue-300' :
+                            row.gender === 'Kadın' ? 'bg-pink-900/50 text-pink-300' :
+                            'bg-gray-700/50 text-gray-400'
+                          }`}>
+                            {row.gender || '-'}
+                          </span>
+                        </TableCell>
                         <TableCell className="text-gray-200">{row.province}</TableCell>
                         <TableCell className="text-gray-200">{row.district}</TableCell>
                         <TableCell className="text-gray-200">{row.mainCategory}</TableCell>

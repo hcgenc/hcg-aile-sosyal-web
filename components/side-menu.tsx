@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Menu, X, MapPin, FolderTree, List, Home, LogOut, FileSpreadsheet, User } from "lucide-react"
+import { Menu, X, MapPin, FolderTree, List, Home, LogOut, FileSpreadsheet, User, UserPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/context/auth-context"
 import { Button } from "@/components/ui/button"
@@ -54,10 +54,22 @@ export function SideMenu() {
       icon: <List className="mr-3 h-5 w-5" />,
       permission: "VIEW_SERVICE_LIST",
     },
+    {
+      name: "Kullanıcı İşlemleri",
+      path: "/kullanici-islemleri",
+      icon: <UserPlus className="mr-3 h-5 w-5" />,
+      permission: "MANAGE_USERS",
+      adminOnly: true,
+    },
   ]
 
-  // Filter menu items based on user permissions
-  const visibleMenuItems = menuItems.filter((item) => hasPermission(item.permission))
+  // Filter menu items based on user permissions and admin status
+  const visibleMenuItems = menuItems.filter((item) => {
+    if (item.adminOnly && user?.role !== 'admin') {
+      return false
+    }
+    return hasPermission(item.permission)
+  })
 
   return (
     <>
@@ -148,15 +160,20 @@ export function SideMenu() {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center justify-center">
+                <div className="flex flex-col items-center gap-2">
                   <span className={cn(
                     "px-3 py-1.5 text-xs font-medium rounded-full",
-                    user.role === "editor" 
+                    user.role === "admin" 
+                      ? "bg-gradient-to-r from-red-600/20 to-red-700/20 text-red-300 border border-red-500/30"
+                      : user.role === "editor" 
                       ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-300 border border-blue-500/30" 
                       : "bg-gradient-to-r from-gray-600/20 to-gray-700/20 text-gray-300 border border-gray-500/30"
                   )}>
-                    {user.role === "editor" ? "Editör" : "Normal Kullanıcı"}
+                    {user.role === "admin" ? "Sistem Yöneticisi" : user.role === "editor" ? "Editör" : "Normal Kullanıcı"}
                   </span>
+                  {user.city && user.role !== 'admin' && (
+                    <span className="text-xs text-gray-400">📍 {user.city}</span>
+                  )}
                 </div>
               </div>
               

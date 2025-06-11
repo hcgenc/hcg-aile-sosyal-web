@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Filter, Layers, MapPin, MapIcon } from "lucide-react"
 import { useMap } from "@/context/map-context"
 import { useSupabase } from "@/context/supabase-context"
+import { useAuth } from "@/context/auth-context"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -18,6 +19,7 @@ export function FilterPanel() {
   const { filter, setFilter, mapMode, setMapMode, provinces, districts, neighborhoods, loadLocationOptions, markers } =
     useMap()
   const { supabase } = useSupabase()
+  const { user } = useAuth()
 
   const [mainCategories, setMainCategories] = useState<MainCategory[]>([])
   const [subCategories, setSubCategories] = useState<SubCategory[]>([])
@@ -102,13 +104,14 @@ export function FilterPanel() {
     let count = 0
     if (filter.mainCategoryId) count++
     if (filter.subCategoryId) count++
-    if (filter.province) count++
+    // İl filtrelemesi sadece admin kullanıcılar için sayılır
+    if (filter.province && user?.role === 'admin') count++
     if (filter.district) count++
     if (filter.neighborhood) count++
 
     setActiveFilterCount(count)
     setFilteredMarkerCount(markers.length)
-  }, [filter, markers])
+  }, [filter, markers, user])
 
   // Sync local state with filter when filter changes externally
   useEffect(() => {
@@ -141,7 +144,10 @@ export function FilterPanel() {
   const clearFilters = () => {
     setSelectedMainCategory(undefined)
     setSelectedSubCategory(undefined)
-    setSelectedProvince(undefined)
+    // İl filtrelemesi sadece admin kullanıcılar için temizlenir
+    if (user?.role === 'admin') {
+      setSelectedProvince(undefined)
+    }
     setSelectedDistrict(undefined)
     setSelectedNeighborhood(undefined)
     setFilter({})
@@ -216,23 +222,36 @@ export function FilterPanel() {
               </TabsList>
 
               <TabsContent value="location" className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="province" className="text-gray-200">
-                    İl
-                  </Label>
-                  <Select value={selectedProvince} onValueChange={handleProvinceChange}>
-                    <SelectTrigger id="province" className="bg-gray-700 border-gray-600 text-gray-100">
-                      <SelectValue placeholder="İl seçin" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-gray-700 border-gray-600">
-                      {provinces.map((province) => (
-                        <SelectItem key={province} value={province} className="text-gray-100 focus:bg-gray-600">
-                          {province}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* İl filtresi sadece admin kullanıcılar için gösterilir */}
+                {user?.role === 'admin' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="province" className="text-gray-200">
+                      İl
+                    </Label>
+                    <Select value={selectedProvince} onValueChange={handleProvinceChange}>
+                      <SelectTrigger id="province" className="bg-gray-700 border-gray-600 text-gray-100">
+                        <SelectValue placeholder="İl seçin" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-gray-700 border-gray-600">
+                        {provinces.map((province) => (
+                          <SelectItem key={province} value={province} className="text-gray-100 focus:bg-gray-600">
+                            {province}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Normal/Editor kullanıcılar için şehir bilgisi gösterimi */}
+                {user?.role !== 'admin' && user?.city && (
+                  <div className="space-y-2">
+                    <Label className="text-gray-200">Şehir</Label>
+                    <div className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-300 text-sm">
+                      📍 {user.city} (Kayıtlı Şehriniz)
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="district" className="text-gray-200">
@@ -241,10 +260,14 @@ export function FilterPanel() {
                   <Select
                     value={selectedDistrict}
                     onValueChange={handleDistrictChange}
-                    disabled={!selectedProvince || districts.length === 0}
+                    disabled={districts.length === 0}
                   >
                     <SelectTrigger id="district" className="bg-gray-700 border-gray-600 text-gray-100">
-                      <SelectValue placeholder={selectedProvince ? "İlçe seçin" : "Önce il seçin"} />
+                      <SelectValue placeholder={
+                        user?.role === 'admin' 
+                          ? (selectedProvince ? "İlçe seçin" : "Önce il seçin")
+                          : (districts.length > 0 ? "İlçe seçin" : `${user?.city || 'Şehriniz'}de ilçe bulunamadı`)
+                      } />
                     </SelectTrigger>
                     <SelectContent className="bg-gray-700 border-gray-600">
                       {districts.map((district) => (

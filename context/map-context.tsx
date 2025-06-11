@@ -4,6 +4,7 @@ import type React from "react"
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { useSupabase } from "./supabase-context"
+import { useAuth } from "./auth-context"
 import { toast } from "@/components/ui/use-toast"
 
 export type Marker = {
@@ -12,6 +13,7 @@ export type Marker = {
   longitude: number
   firstName: string
   lastName: string
+  gender?: string
   province: string
   district: string
   neighborhood: string
@@ -83,6 +85,7 @@ export const useMap = () => useContext(MapContext)
 
 export const MapProvider = ({ children }: { children: React.ReactNode }) => {
   const { supabase } = useSupabase()
+  const { user } = useAuth()
   const [markers, setMarkers] = useState<Marker[]>([])
   const [selectedMarker, setSelectedMarker] = useState<Marker | null>(null)
   const [filter, setFilter] = useState<Filter>({})
@@ -142,6 +145,22 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
           queryOptions.filter.neighborhood = filter.neighborhood
         }
 
+        // Rol bazlı şehir filtrelemesi
+        if (user) {
+          if (user.role === 'normal' || user.role === 'editor') {
+            // Normal ve Editor kullanıcılar sadece kendi şehirlerindeki verileri görebilir
+            if (user.city) {
+              queryOptions.filter.province = user.city
+            } else {
+              // Eğer kullanıcının şehri yoksa hiçbir veri gösterme
+              console.log("User has no city, showing no data")
+              setMarkers([])
+              return
+            }
+          }
+          // Admin kullanıcılar tüm verileri görebilir (hiçbir ek filtreleme yok)
+        }
+
         const result = await supabase.select("addresses", queryOptions)
 
         if (result.error) {
@@ -155,6 +174,7 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
             longitude: item.longitude,
             firstName: item.first_name,
             lastName: item.last_name,
+            gender: item.gender,
             province: item.province,
             district: item.district,
             neighborhood: item.neighborhood,
@@ -182,7 +202,7 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
     },
-    [supabase, filter],
+    [supabase, filter, user],
   )
 
   // Regular refresh function
@@ -200,26 +220,44 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
     if (!supabase) return
 
     try {
-      // Always load all provinces
-      const provinceResult = await supabase.select("addresses", {
-        select: "province",
-        orderBy: { column: "province", ascending: true }
-      })
+      // Rol bazlı konum filtrelemesi
+      let targetProvince = filter.province
 
-      if (provinceResult.error) throw provinceResult.error
+      if (user) {
+        if (user.role === 'normal' || user.role === 'editor') {
+          // Normal ve Editor kullanıcılar için kendi şehirlerini kullan
+          targetProvince = user.city || ''
+          if (!targetProvince) {
+            setProvinces([])
+            setDistricts([])
+            setNeighborhoods([])
+            return
+          }
+        } else if (user.role === 'admin') {
+          // Admin kullanıcılar için tüm iller
+          const provinceResult = await supabase.select("addresses", {
+            select: "province",
+            orderBy: { column: "province", ascending: true }
+          })
 
-      if (provinceResult.data) {
-        const uniqueProvinces = [...new Set(provinceResult.data.map((item: any) => item.province))]
-          .filter(Boolean)
-          .sort((a: string, b: string) => a.localeCompare(b, "tr"))
-        setProvinces(uniqueProvinces)
+          if (provinceResult.error) throw provinceResult.error
+
+          if (provinceResult.data) {
+            const uniqueProvinces = [...new Set(provinceResult.data.map((item: any) => item.province))]
+              .filter(Boolean)
+              .sort((a: string, b: string) => a.localeCompare(b, "tr"))
+            setProvinces(uniqueProvinces)
+          }
+
+          targetProvince = filter.province
+        }
       }
 
-      // Load districts based on selected province
-      if (filter.province) {
+      // Load districts based on target province (user's city for normal/editor, selected province for admin)
+      if (targetProvince) {
         const districtResult = await supabase.select("addresses", {
           select: "district",
-          filter: { province: filter.province },
+          filter: { province: targetProvince },
           orderBy: { column: "district", ascending: true }
         })
 
@@ -235,12 +273,12 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
         setDistricts([])
       }
 
-      // Load neighborhoods based on selected district and province
-      if (filter.province && filter.district) {
+      // Load neighborhoods based on selected district and target province
+      if (targetProvince && filter.district) {
         const neighborhoodResult = await supabase.select("addresses", {
           select: "neighborhood",
           filter: { 
-            province: filter.province,
+            province: targetProvince,
             district: filter.district
           },
           orderBy: { column: "neighborhood", ascending: true }
@@ -265,7 +303,7 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
         variant: "destructive",
       })
     }
-  }, [supabase, filter.province, filter.district])
+  }, [supabase, filter.province, filter.district, user])
 
   // Update the setFilter function to handle cascading resets
   const setFilterWithCascade = useCallback(

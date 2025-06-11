@@ -34,6 +34,7 @@ export default function AddressAddPage() {
   // Adres bilgileri
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
+  const [gender, setGender] = useState("")
   const [province, setProvince] = useState("")
   const [district, setDistrict] = useState("")
   const [neighborhood, setNeighborhood] = useState("")
@@ -397,6 +398,7 @@ export default function AddressAddPage() {
       const result = await supabase.insert("addresses", {
         first_name: firstName,
         last_name: lastName,
+        gender: gender || null,
         province: province,
         district: district,
         neighborhood: neighborhood,
@@ -488,6 +490,11 @@ export default function AddressAddPage() {
                 <p className="text-lg font-semibold">
                   {firstName} {lastName}
                 </p>
+                {gender && (
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                    {gender}
+                  </p>
+                )}
               </div>
 
               <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
@@ -672,7 +679,7 @@ export default function AddressAddPage() {
           <div className="border-t pt-6">
             <h2 className="text-lg font-semibold mb-4">Kişisel Bilgiler</h2>
 
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-3 gap-4 mb-4">
               <div className="space-y-2">
                 <Label htmlFor="firstName">İsim</Label>
                 <Input
@@ -690,6 +697,19 @@ export default function AddressAddPage() {
                   onChange={(e) => setLastName(e.target.value)}
                   placeholder="Soyisim"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gender">Cinsiyet</Label>
+                <Select value={gender} onValueChange={setGender}>
+                  <SelectTrigger id="gender">
+                    <SelectValue placeholder="Cinsiyet seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Erkek">Erkek</SelectItem>
+                    <SelectItem value="Kadın">Kadın</SelectItem>
+                    <SelectItem value="Belirtmek istemiyorum">Belirtmek istemiyorum</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>

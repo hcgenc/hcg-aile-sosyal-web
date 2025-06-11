@@ -27,7 +27,7 @@ export default function ServiceListPage() {
   const router = useRouter()
   const { supabase } = useSupabase()
   const { refreshMarkers, setMapCenter, setMapZoom, setHighlightedMarkerId, setSelectedMarker } = useMap()
-  const { hasPermission, logAction } = useAuth()
+  const { user, hasPermission, logAction } = useAuth()
 
   const [addresses, setAddresses] = useState<Marker[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -40,11 +40,30 @@ export default function ServiceListPage() {
     setIsLoading(true)
 
     try {
-      // Ana adres verilerini proxy üzerinden al
-      const addressResult = await supabase.select("addresses", {
+      // Rol bazlı şehir filtrelemesi için query options
+      const queryOptions: any = {
         select: "*",
         orderBy: { column: "first_name", ascending: true }
-      })
+      }
+
+      // Rol bazlı şehir filtrelemesi
+      if (user) {
+        if (user.role === 'normal' || user.role === 'editor') {
+          // Normal ve Editor kullanıcılar sadece kendi şehirlerindeki verileri görebilir
+          if (user.city) {
+            queryOptions.filter = { province: user.city }
+          } else {
+            // Eğer kullanıcının şehri yoksa hiçbir veri gösterme
+            setAddresses([])
+            setIsLoading(false)
+            return
+          }
+        }
+        // Admin kullanıcılar tüm verileri görebilir (hiçbir ek filtreleme yok)
+      }
+
+      // Ana adres verilerini proxy üzerinden al
+      const addressResult = await supabase.select("addresses", queryOptions)
 
       if (addressResult.error) throw addressResult.error
 
@@ -61,7 +80,7 @@ export default function ServiceListPage() {
         const mainCategories = mainCategoriesResult.data || []
         const subCategories = subCategoriesResult.data || []
 
-        const formattedAddresses = addressResult.data.map((item) => {
+                  const formattedAddresses = addressResult.data.map((item) => {
           // Manuel olarak kategori isimlerini bul
           const mainCategory = mainCategories.find(cat => cat.id === item.main_category_id)
           const subCategory = subCategories.find(cat => cat.id === item.sub_category_id)
@@ -72,6 +91,7 @@ export default function ServiceListPage() {
             longitude: item.longitude,
             firstName: item.first_name,
             lastName: item.last_name,
+            gender: item.gender,
             province: item.province,
             district: item.district,
             neighborhood: item.neighborhood,
@@ -100,10 +120,10 @@ export default function ServiceListPage() {
 
   // Sayfa yüklendiğinde adresleri getir
   useEffect(() => {
-    if (supabase) {
+    if (supabase && user) {
       loadAddresses()
     }
-  }, [supabase])
+  }, [supabase, user])
 
   // Adres sil
   const deleteAddress = async (id: string) => {
@@ -183,6 +203,7 @@ export default function ServiceListPage() {
         item.address,
         item.mainCategoryName,
         item.subCategoryName,
+        item.gender,
       ]
         .filter(Boolean) // Remove null/undefined values
         .join(" ")
@@ -201,7 +222,7 @@ export default function ServiceListPage() {
       <div className="relative mb-6">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
         <Input
-          placeholder="İsim, soyisim, il, ilçe, mahalle veya kategori ile arayın..."
+          placeholder="İsim, soyisim, cinsiyet, il, ilçe, mahalle veya kategori ile arayın..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-10 bg-gray-800 border-gray-600 text-gray-100 placeholder-gray-400"
@@ -223,6 +244,7 @@ export default function ServiceListPage() {
             <TableHeader>
               <TableRow className="border-gray-600">
                 <TableHead className="text-gray-200 min-w-[150px]">Ad Soyad</TableHead>
+                <TableHead className="text-gray-200 min-w-[80px]">Cinsiyet</TableHead>
                 <TableHead className="text-gray-200 min-w-[120px]">İl</TableHead>
                 <TableHead className="text-gray-200 min-w-[120px]">İlçe</TableHead>
                 <TableHead className="text-gray-200 min-w-[120px]">Mahalle</TableHead>
@@ -235,13 +257,13 @@ export default function ServiceListPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow className="border-gray-600">
-                  <TableCell colSpan={8} className="text-center py-8 text-gray-300">
+                  <TableCell colSpan={9} className="text-center py-8 text-gray-300">
                     Veriler yükleniyor...
                   </TableCell>
                 </TableRow>
               ) : filteredAddresses.length === 0 ? (
                 <TableRow className="border-gray-600">
-                  <TableCell colSpan={8} className="text-center py-8 text-gray-300">
+                  <TableCell colSpan={9} className="text-center py-8 text-gray-300">
                     {searchTerm ? "Arama kriterlerine uygun kayıt bulunamadı." : "Henüz kayıtlı adres bulunmamaktadır."}
                   </TableCell>
                 </TableRow>
@@ -258,6 +280,15 @@ export default function ServiceListPage() {
                           {address.province}, {address.district}
                         </span>
                       </div>
+                    </TableCell>
+                    <TableCell className="text-gray-300">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        address.gender === 'Erkek' ? 'bg-blue-900/50 text-blue-300' :
+                        address.gender === 'Kadın' ? 'bg-pink-900/50 text-pink-300' :
+                        'bg-gray-700/50 text-gray-400'
+                      }`}>
+                        {address.gender || '-'}
+                      </span>
                     </TableCell>
                     <TableCell className="text-gray-300">{address.province}</TableCell>
                     <TableCell className="text-gray-300">{address.district}</TableCell>

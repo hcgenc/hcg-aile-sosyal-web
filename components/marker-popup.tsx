@@ -1,5 +1,5 @@
 import type { Marker } from "@/context/map-context"
-import { MapPin, User, Home, Clock } from "lucide-react"
+import { MapPin, User, Home, Clock, Users } from "lucide-react"
 
 interface MarkerPopupProps {
   marker: Marker
@@ -71,9 +71,17 @@ export function MarkerPopup({ marker }: MarkerPopupProps) {
           <h3 className="font-bold text-base leading-tight">
             {marker.firstName} {lastName}
           </h3>
-          <div className="text-white/80 text-xs flex items-center gap-1 mt-0.5">
-            <Clock className="h-3 w-3" />
-            {formatDate(marker.createdAt)}
+          <div className="text-white/80 text-xs flex items-center gap-3 mt-0.5">
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {formatDate(marker.createdAt)}
+            </div>
+            {marker.gender && (
+              <div className="flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                {marker.gender}
+              </div>
+            )}
           </div>
         </div>
       </div>

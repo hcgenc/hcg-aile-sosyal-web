@@ -5,13 +5,14 @@ import { createContext, useContext, useState, useEffect } from "react"
 import { useSupabase } from "./supabase-context"
 import { toast } from "@/components/ui/use-toast"
 
-export type UserRole = "normal" | "editor"
+export type UserRole = "normal" | "editor" | "admin"
 
 export type User = {
   id: string
   username: string
   role: UserRole
   fullName: string
+  city?: string
   createdAt: string
   lastLogin?: string
 }
@@ -162,6 +163,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         "VIEW_CATEGORY_MANAGEMENT",
         "MANAGE_API_KEYS",
         "VIEW_LOGS"
+      ],
+      admin: [
+        "VIEW_MAP",
+        "VIEW_SERVICE_LIST",
+        "VIEW_FILTERS",
+        "ADD_ADDRESS",
+        "EDIT_ADDRESS",
+        "DELETE_ADDRESS",
+        "MANAGE_CATEGORIES",
+        "VIEW_CATEGORY_MANAGEMENT",
+        "MANAGE_API_KEYS",
+        "VIEW_LOGS",
+        "MANAGE_USERS",
+        "SYSTEM_CONTROL"
       ],
     }
 
