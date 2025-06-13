@@ -13,6 +13,8 @@ interface YandexMapProps {
     id: string
     position: [number, number]
     color?: string
+    mainCategoryColor?: string
+    subCategoryColor?: string
     letter?: string
     onClick?: () => void
   }>
@@ -150,7 +152,7 @@ export function YandexMap({
           },
           {
             preset: "islands#circleIcon",
-            iconColor: marker.color || "#3B82F6",
+            iconColor: marker.subCategoryColor || marker.mainCategoryColor || marker.color || "#3B82F6",
             draggable: false,
           },
         )

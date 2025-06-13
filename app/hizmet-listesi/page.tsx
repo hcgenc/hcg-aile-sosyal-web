@@ -1,13 +1,14 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useSupabase } from "@/context/supabase-context"
 import { useMap } from "@/context/map-context"
 import { useAuth } from "@/context/auth-context"
-import { Trash2, MapPin, Search } from "lucide-react"
+import { Trash2, MapPin, Search, AlertTriangle, Database } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   AlertDialog,
@@ -20,6 +21,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { toast } from "@/components/ui/use-toast"
 import type { Marker } from "@/context/map-context"
 
@@ -32,6 +42,9 @@ export default function ServiceListPage() {
   const [addresses, setAddresses] = useState<Marker[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [isLoading, setIsLoading] = useState(true)
+  const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false)
+  const [adminPassword, setAdminPassword] = useState("")
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Adresleri getir
   const loadAddresses = async () => {
@@ -62,47 +75,40 @@ export default function ServiceListPage() {
         // Admin kullanıcılar tüm verileri görebilir (hiçbir ek filtreleme yok)
       }
 
-      // Ana adres verilerini proxy üzerinden al
-      const addressResult = await supabase.select("addresses", queryOptions)
+      // Ana adres verilerini kategorilerle birlikte çek (joinli sorgu)
+      const addressQueryOptions = {
+        ...queryOptions,
+        select: `
+          *,
+          main_categories(name, color),
+          sub_categories(name, color)
+        `
+      }
+
+      const addressResult = await supabase.select("addresses", addressQueryOptions)
 
       if (addressResult.error) throw addressResult.error
 
       if (addressResult.data) {
-        // Kategorileri ayrı ayrı al
-        const mainCategoriesResult = await supabase.select("main_categories", {
-          select: "*"
-        })
-        
-        const subCategoriesResult = await supabase.select("sub_categories", {
-          select: "*"
-        })
-
-        const mainCategories = mainCategoriesResult.data || []
-        const subCategories = subCategoriesResult.data || []
-
-                  const formattedAddresses = addressResult.data.map((item) => {
-          // Manuel olarak kategori isimlerini bul
-          const mainCategory = mainCategories.find(cat => cat.id === item.main_category_id)
-          const subCategory = subCategories.find(cat => cat.id === item.sub_category_id)
-
-          return {
-            id: item.id,
-            latitude: item.latitude,
-            longitude: item.longitude,
-            firstName: item.first_name,
-            lastName: item.last_name,
-            gender: item.gender,
-            province: item.province,
-            district: item.district,
-            neighborhood: item.neighborhood,
-            address: item.address,
-            mainCategoryId: item.main_category_id,
-            subCategoryId: item.sub_category_id,
-            mainCategoryName: mainCategory?.name,
-            subCategoryName: subCategory?.name,
-            createdAt: item.created_at,
-          }
-        })
+        const formattedAddresses = addressResult.data.map((item: any) => ({
+          id: item.id,
+          latitude: item.latitude,
+          longitude: item.longitude,
+          firstName: item.first_name,
+          lastName: item.last_name,
+          gender: item.gender,
+          province: item.province,
+          district: item.district,
+          neighborhood: item.neighborhood,
+          address: item.address,
+          mainCategoryId: item.main_category_id,
+          subCategoryId: item.sub_category_id,
+          mainCategoryName: item.main_categories?.name,
+          mainCategoryColor: item.main_categories?.color || "#3B82F6",
+          subCategoryName: item.sub_categories?.name,
+          subCategoryColor: item.sub_categories?.color || "#3B82F6",
+          createdAt: item.created_at,
+        }))
 
         setAddresses(formattedAddresses)
       }
@@ -153,6 +159,104 @@ export default function ServiceListPage() {
         description: "Adres silinirken bir sorun oluştu.",
         variant: "destructive",
       })
+    }
+  }
+
+  // Optimize password input handler to prevent freezing
+  const handlePasswordChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setAdminPassword(value)
+  }, [])
+
+  // Tüm adresleri sil (sadece admin)
+  const deleteAllAddresses = async () => {
+    if (user?.role !== 'admin' || !user?.id) return
+
+    // UI donmasını önlemek için immediate state update
+    setIsDeleting(true)
+
+    try {
+      console.log('Admin password verification started...')
+      
+      // UI güncellemesi için küçük delay
+      await new Promise(resolve => setTimeout(resolve, 50))
+      
+      // Önce şifreyi API üzerinden doğrula
+      const passwordVerifyResponse = await fetch('/api/admin/verify-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          password: adminPassword,
+          userId: user.id
+        })
+      })
+
+      const passwordResult = await passwordVerifyResponse.json()
+      console.log('Password verification result:', passwordResult)
+
+      if (!passwordVerifyResponse.ok || !passwordResult.success) {
+        toast({
+          title: "Hata",
+          description: passwordResult.error || "Yanlış şifre! Lütfen doğru sistem şifresini girin.",
+          variant: "destructive",
+        })
+        setIsDeleting(false)
+        return
+      }
+
+      console.log('Password verified, starting deletion...')
+      
+      // Şifre doğrulandı, artık verileri silebiliriz - yeni API kullan
+      const totalCount = addresses.length
+      const deleteResponse = await fetch('/api/admin/delete-all-addresses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id
+        })
+      })
+
+      const deleteResult = await deleteResponse.json()
+      console.log('Delete result:', deleteResult)
+
+      if (!deleteResponse.ok || !deleteResult.success) {
+        throw new Error(deleteResult.error || 'Silme işlemi başarısız')
+      }
+
+      console.log('Addresses deleted successfully')
+
+      // Log action
+      await logAction("DELETE_ALL_ADDRESSES", `Deleted all addresses in the system. Total count: ${deleteResult.deletedCount || totalCount}`)
+
+      // Success message
+      toast({
+        title: "Başarılı", 
+        description: `Tüm hizmet alan kayıtları (${deleteResult.deletedCount || totalCount} kayıt) başarıyla silindi.`,
+      })
+
+      // UI güncellemelerini batch'le - asenkron yap
+      setTimeout(() => {
+        setAddresses([])
+        refreshMarkers()
+      }, 50)
+      
+      // Dialog'u kapat ve form'u temizle
+      setIsDeleteAllDialogOpen(false)
+      setAdminPassword("")
+      
+    } catch (error) {
+      console.error("Tüm adresler silinirken hata:", error)
+      toast({
+        title: "Hata",
+        description: error instanceof Error ? error.message : "Adresler silinirken bir sorun oluştu.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -215,18 +319,117 @@ export default function ServiceListPage() {
   }, [addresses, searchTerm])
 
   return (
-    <div className="container py-10 px-4 max-w-7xl mx-auto bg-gray-900 min-h-screen">
+    <div className="container py-10 px-4 max-w-7xl mx-auto bg-gray-900 min-h-screen pt-20 md:pt-10">
       <h1 className="text-2xl font-bold mb-6 text-gray-100">Hizmet Alanların Listesi</h1>
 
-      {/* Arama */}
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-        <Input
-          placeholder="İsim, soyisim, cinsiyet, il, ilçe, mahalle veya kategori ile arayın..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10 bg-gray-800 border-gray-600 text-gray-100 placeholder-gray-400"
-        />
+      {/* Arama ve Admin Kontrolleri */}
+      <div className="flex gap-4 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+          <Input
+            placeholder="İsim, soyisim, cinsiyet, il, ilçe, mahalle veya kategori ile arayın..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 bg-gray-800 border-gray-600 text-gray-100 placeholder-gray-400"
+          />
+        </div>
+        
+        {/* Admin kontrolleri - sadece admin kullanıcılar için */}
+        {user?.role === 'admin' && (
+          <Dialog open={isDeleteAllDialogOpen} onOpenChange={setIsDeleteAllDialogOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                variant="destructive" 
+                className="shrink-0 bg-red-700 hover:bg-red-800"
+                disabled={addresses.length === 0}
+              >
+                <Database className="h-4 w-4 mr-2" />
+                Tüm Verileri Sil
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-gray-800 border-gray-600 text-gray-100">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-red-400">
+                  <AlertTriangle className="h-5 w-5" />
+                  Kritik İşlem: Tüm Hizmet Alan Verilerini Sil
+                </DialogTitle>
+                <DialogDescription className="text-gray-300">
+                  ⚠️ <strong>Bu işlem GERİ ALINMAZ!</strong>
+                  <br />
+                  <br />
+                  Sistemdeki <strong className="text-red-400">{addresses.length} adet</strong> hizmet alan kaydının 
+                  <strong className="text-red-400"> tamamı kalıcı olarak silinecektir.</strong>
+                  <br />
+                  <br />
+                  Devam etmek için sistem yöneticisi şifrenizi girin:
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="admin-password" className="text-gray-200">
+                    Sistem Yöneticisi Şifresi
+                  </Label>
+                  <Input
+                    id="admin-password"
+                    type="password"
+                    value={adminPassword}
+                    onChange={handlePasswordChange}
+                    placeholder="Şifrenizi girin..."
+                    className="bg-gray-700 border-gray-600 text-gray-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                    disabled={isDeleting}
+                    autoComplete="current-password"
+                    maxLength={50}
+                  />
+                </div>
+                
+                <div className="p-3 bg-red-900/20 border border-red-700 rounded-md">
+                  <p className="text-sm text-red-300">
+                    <strong>Uyarı:</strong> Bu işlem şunları silecektir:
+                  </p>
+                  <ul className="list-disc list-inside text-sm text-red-300 mt-2 space-y-1">
+                    <li>Tüm kişi bilgileri ve adresleri</li>
+                    <li>Tüm konum koordinatları</li>
+                    <li>Tüm kategori atamaları</li>
+                    <li>Haritadaki tüm işaretleyiciler</li>
+                  </ul>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setIsDeleteAllDialogOpen(false)
+                    setAdminPassword("")
+                  }}
+                  disabled={isDeleting}
+                  className="bg-gray-700 text-gray-200 border-gray-600 hover:bg-gray-600"
+                >
+                  İptal
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={deleteAllAddresses}
+                  disabled={!adminPassword.trim() || isDeleting}
+                  className="bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isDeleting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                      İşleniyor...
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="h-4 w-4 mr-2" />
+                      Evet, Tüm Verileri Sil
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Sonuç sayısı */}
@@ -295,12 +498,48 @@ export default function ServiceListPage() {
                     <TableCell className="text-gray-300">{address.neighborhood}</TableCell>
                     <TableCell className="text-gray-300">
                       <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-4 h-4 rounded-full shadow-sm relative overflow-hidden"
+                          style={{ 
+                            backgroundColor: address.mainCategoryColor || "#3B82F6",
+                            boxShadow: `0 1px 3px ${address.mainCategoryColor || "#3B82F6"}30`
+                          }}
+                        >
+                          {/* Mini parıltı efekti */}
+                          <div 
+                            className="absolute inset-0 rounded-full bg-gradient-to-br from-white/40 to-transparent"
+                          />
+                        </div>
                         <span>{address.mainCategoryName}</span>
+                      </div>
                         {/* Show service type on mobile */}
-                        <span className="text-xs text-gray-400 lg:hidden mt-1">{address.subCategoryName}</span>
+                        <div className="flex items-center gap-1 lg:hidden mt-1">
+                          <div
+                            className="w-3 h-3 rounded-full shadow-sm"
+                            style={{ backgroundColor: address.subCategoryColor || "#3B82F6" }}
+                          />
+                          <span className="text-xs text-gray-400">{address.subCategoryName}</span>
+                        </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-gray-300 hidden lg:table-cell">{address.subCategoryName}</TableCell>
+                    <TableCell className="text-gray-300 hidden lg:table-cell">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-4 h-4 rounded-full shadow-sm relative overflow-hidden"
+                          style={{ 
+                            backgroundColor: address.subCategoryColor || "#3B82F6",
+                            boxShadow: `0 1px 3px ${address.subCategoryColor || "#3B82F6"}30`
+                          }}
+                        >
+                          {/* Mini parıltı efekti */}
+                          <div 
+                            className="absolute inset-0 rounded-full bg-gradient-to-br from-white/40 to-transparent"
+                          />
+                        </div>
+                        <span>{address.subCategoryName}</span>
+                      </div>
+                    </TableCell>
                     <TableCell className="hidden lg:table-cell text-xs text-gray-300">
                       <div className="flex flex-col">
                         <span className="font-medium">{address.address}</span>

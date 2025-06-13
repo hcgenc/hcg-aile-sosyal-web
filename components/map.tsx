@@ -55,12 +55,23 @@ export function Map() {
   }, [forceRefreshMarkers, mapMounted])
 
   // Get marker color based on category
-  const getMarkerColor = useCallback((categoryName: string | undefined, isHighlighted = false): string => {
+  const getMarkerColor = useCallback((marker: any, isHighlighted = false): string => {
     if (isHighlighted) return "#FFD700" // Gold for highlighted markers
 
-    if (!categoryName) return "#3B82F6" // Default blue
+    // Önce hizmet türü rengini kullan
+    if (marker.subCategoryColor) {
+      return marker.subCategoryColor
+    }
 
-    switch (categoryName) {
+    // Sonra ana kategori rengini kullan
+    if (marker.mainCategoryColor) {
+      return marker.mainCategoryColor
+    }
+
+    // Fallback olarak kategori ismine göre renk belirle
+    if (!marker.mainCategoryName) return "#3B82F6" // Default blue
+
+    switch (marker.mainCategoryName) {
       case "Yaşlı":
         return "#10B981" // Green
       case "Engelli":
@@ -96,7 +107,9 @@ export function Map() {
         return {
           id: marker.id,
           position: [marker.latitude, marker.longitude] as [number, number],
-          color: getMarkerColor(marker.mainCategoryName, isHighlighted),
+          color: getMarkerColor(marker, isHighlighted),
+          mainCategoryColor: marker.mainCategoryColor,
+          subCategoryColor: marker.subCategoryColor,
           letter: marker.mainCategoryName ? marker.mainCategoryName.charAt(0) : "?",
         }
       }),

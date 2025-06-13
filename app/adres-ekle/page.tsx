@@ -65,13 +65,14 @@ export default function AddressAddPage() {
 
       if (result.error) throw result.error
 
-      if (result.data) {
-        setMainCategories(
-          result.data.map((item: any) => ({
-            id: item.id,
-            name: item.name,
-          })),
-        )
+              if (result.data) {
+          setMainCategories(
+            result.data.map((item: any) => ({
+              id: item.id,
+              name: item.name,
+              color: item.color || "#3B82F6",
+            })),
+          )
       }
     }
 
@@ -105,6 +106,7 @@ export default function AddressAddPage() {
             id: item.id,
             name: item.name,
             mainCategoryId: item.main_category_id,
+            color: item.color || "#3B82F6",
           })),
         )
       }
@@ -434,22 +436,10 @@ export default function AddressAddPage() {
 
   // Marker rengi
   const getMarkerColor = () => {
-    if (!selectedMainCategoryName) return "#3B82F6" // Default blue
+    if (!selectedMainCategory) return "#3B82F6" // Default blue
 
-    switch (selectedMainCategoryName) {
-      case "Yaşlı":
-        return "#10B981" // Green
-      case "Engelli":
-        return "#F59E0B" // Orange
-      case "Kronik Hastalık":
-        return "#EF4444" // Red
-      case "Sosyal Destek İhtiyacı":
-        return "#8B5CF6" // Purple
-      case "Afet Mağduru":
-        return "#EC4899" // Pink
-      default:
-        return "#3B82F6" // Blue
-    }
+    const selectedCategory = mainCategories.find(cat => cat.id === selectedMainCategory)
+    return selectedCategory?.color || "#3B82F6" // Seçilen kategorinin rengi veya varsayılan mavi
   }
 
   // Memoize preview markers to prevent unnecessary re-renders
@@ -467,7 +457,7 @@ export default function AddressAddPage() {
   }, [isPreviewMode, coordinates, selectedMainCategoryName])
 
   return (
-    <div className="container py-10 px-4 max-w-3xl mx-auto">
+    <div className="container py-10 px-4 max-w-3xl mx-auto pt-20 md:pt-10">
       <h1 className="text-2xl font-bold mb-6">Adres Ekle</h1>
 
       {isPreviewMode ? (
@@ -506,12 +496,40 @@ export default function AddressAddPage() {
 
               <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
                 <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Risk Faktörü</h3>
-                <p className="font-semibold">{mainCategories.find((c) => c.id === selectedMainCategory)?.name}</p>
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-6 h-6 rounded-full shadow-md relative overflow-hidden"
+                    style={{ 
+                      backgroundColor: mainCategories.find((c) => c.id === selectedMainCategory)?.color || "#3B82F6",
+                      boxShadow: `0 2px 6px ${mainCategories.find((c) => c.id === selectedMainCategory)?.color || "#3B82F6"}30`
+                    }}
+                  >
+                    {/* Mini parıltı efekti */}
+                    <div 
+                      className="absolute inset-0 rounded-full bg-gradient-to-br from-white/40 to-transparent"
+                    />
+                  </div>
+                  <p className="font-semibold">{mainCategories.find((c) => c.id === selectedMainCategory)?.name}</p>
+                </div>
               </div>
 
               <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
                 <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Hizmet Türü</h3>
-                <p className="font-semibold">{subCategories.find((c) => c.id === selectedSubCategory)?.name}</p>
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-6 h-6 rounded-full shadow-md relative overflow-hidden"
+                    style={{ 
+                      backgroundColor: subCategories.find((c) => c.id === selectedSubCategory)?.color || "#3B82F6",
+                      boxShadow: `0 2px 6px ${subCategories.find((c) => c.id === selectedSubCategory)?.color || "#3B82F6"}30`
+                    }}
+                  >
+                    {/* Mini parıltı efekti */}
+                    <div 
+                      className="absolute inset-0 rounded-full bg-gradient-to-br from-white/40 to-transparent"
+                    />
+                  </div>
+                  <p className="font-semibold">{subCategories.find((c) => c.id === selectedSubCategory)?.name}</p>
+                </div>
               </div>
 
               <div className="md:col-span-2 bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
@@ -727,7 +745,21 @@ export default function AddressAddPage() {
                   <SelectContent>
                     {mainCategories.map((category) => (
                       <SelectItem key={category.id} value={category.id}>
-                        {category.name}
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-5 h-5 rounded-full shadow-md relative overflow-hidden"
+                            style={{ 
+                              backgroundColor: category.color,
+                              boxShadow: `0 2px 6px ${category.color}30`
+                            }}
+                          >
+                            {/* Mini parıltı efekti */}
+                            <div 
+                              className="absolute inset-0 rounded-full bg-gradient-to-br from-white/40 to-transparent"
+                            />
+                          </div>
+                          {category.name}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -746,7 +778,21 @@ export default function AddressAddPage() {
                   <SelectContent>
                     {subCategories.map((category) => (
                       <SelectItem key={category.id} value={category.id}>
-                        {category.name}
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-5 h-5 rounded-full shadow-md relative overflow-hidden"
+                            style={{ 
+                              backgroundColor: category.color,
+                              boxShadow: `0 2px 6px ${category.color}30`
+                            }}
+                          >
+                            {/* Mini parıltı efekti */}
+                            <div 
+                              className="absolute inset-0 rounded-full bg-gradient-to-br from-white/40 to-transparent"
+                            />
+                          </div>
+                          {category.name}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>

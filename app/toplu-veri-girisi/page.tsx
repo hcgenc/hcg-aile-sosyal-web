@@ -17,6 +17,8 @@ import { toast } from "@/components/ui/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import * as XLSX from "xlsx"
 import { geocodeAddressEnhanced } from "@/lib/yandex-maps"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface ExcelRow {
   firstName: string
@@ -57,9 +59,10 @@ export default function BulkDataEntryPage() {
     errors: 0,
   })
   const [categories, setCategories] = useState<{
-    main: Array<{ id: string; name: string }>
-    sub: Array<{ id: string; name: string; mainCategoryId: string }>
+    main: Array<{ id: string; name: string; color: string }>
+    sub: Array<{ id: string; name: string; mainCategoryId: string; color: string }>
   }>({ main: [], sub: [] })
+  const [showGuideModal, setShowGuideModal] = useState(false)
 
   // Load categories
   const loadCategories = async () => {
@@ -81,12 +84,13 @@ export default function BulkDataEntryPage() {
       if (subResult.error) throw subResult.error
 
       setCategories({
-        main: mainResult.data?.map((item: any) => ({ id: item.id, name: item.name })) || [],
+        main: mainResult.data?.map((item: any) => ({ id: item.id, name: item.name, color: item.color || "#3B82F6" })) || [],
         sub:
           subResult.data?.map((item: any) => ({
             id: item.id,
             name: item.name,
             mainCategoryId: item.main_category_id,
+            color: item.color || "#3B82F6",
           })) || [],
       })
     } catch (error) {
@@ -355,55 +359,97 @@ export default function BulkDataEntryPage() {
   }
 
   return (
-    <div className="container py-10 px-4 max-w-6xl mx-auto bg-gray-900 min-h-screen">
-      <div className="flex items-center gap-3 mb-6">
-        <FileSpreadsheet className="h-8 w-8 text-blue-400" />
-        <h1 className="text-2xl font-bold text-gray-100">Toplu Veri Girişi</h1>
-      </div>
+    <>
+      <div className="container py-10 px-4 max-w-6xl mx-auto bg-gray-900 min-h-screen pt-20 md:pt-10">
+        <div className="flex items-center gap-3 mb-6">
+          <FileSpreadsheet className="h-8 w-8 text-blue-400" />
+          <h1 className="text-2xl font-bold text-gray-100">Toplu Veri Girişi</h1>
+        </div>
 
-      <div className="space-y-6">
-        {/* Instructions */}
-        <Alert className="bg-blue-900/20 border-blue-800">
-          <AlertCircle className="h-4 w-4 text-blue-400" />
-          <AlertTitle className="text-blue-400">Kullanım Talimatları</AlertTitle>
-          <AlertDescription className="text-blue-200">
-            <ol className="list-decimal pl-4 mt-2 space-y-1">
-              <li>Önce şablon dosyasını indirin</li>
-              <li>
-                Excel dosyasını doldurun (gerekli sütunlar: İsim, Soyisim, İl, İlçe, Mahalle, Adres, Risk Faktörü,
-                Hizmet Türü; opsiyonel: Cinsiyet)
-              </li>
-              <li>Dosyayı yükleyin ve verileri kontrol edin</li>
-              <li>"Verileri İşle" butonuna tıklayarak kaydetme işlemini başlatın</li>
-            </ol>
-          </AlertDescription>
-        </Alert>
+        <div className="space-y-6">
+          {/* Simple Notice */}
+          <Alert className="bg-blue-900/20 border-blue-800">
+            <AlertCircle className="h-4 w-4 text-blue-400" />
+            <AlertTitle className="text-blue-400">Başlamadan Önce</AlertTitle>
+            <AlertDescription className="text-blue-200">
+              İlk defa kullanıyorsanız, lütfen aşağıdaki "Detaylı Kılavuz" butonuna tıklayarak 
+              adım adım talimatları okuyun.
+            </AlertDescription>
+          </Alert>
 
-        {/* Template Download */}
-        <Card className="bg-gray-800 border-gray-600">
-          <CardHeader>
-            <CardTitle className="text-gray-100">1. Şablon İndir</CardTitle>
-            <CardDescription className="text-gray-400">
-              Önce Excel şablonunu indirin ve gerekli bilgileri doldurun.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={downloadTemplate} variant="outline" className="border-gray-600 text-gray-200">
-              <Download className="h-4 w-4 mr-2" />
-              Excel Şablonunu İndir
-            </Button>
-          </CardContent>
-        </Card>
+                  {/* 3-Step Process */}
+          <div className="grid gap-6 md:grid-cols-3">
+            {/* Step 1: Guide */}
+            <Card className="bg-gray-800 border-gray-600 relative h-[280px] flex flex-col">
+              <div className="absolute -top-3 left-4">
+                <div className="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm">
+                  1
+                </div>
+              </div>
+              <CardHeader className="pt-8 flex-1">
+                <CardTitle className="text-gray-100 flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-blue-400" />
+                  Kılavuzu Okuyun
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  İlk adım olarak detaylı kullanım kılavuzunu inceleyin
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pb-6">
+                <Button 
+                  onClick={() => setShowGuideModal(true)} 
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  Detaylı Kılavuzu Aç
+                </Button>
+              </CardContent>
+            </Card>
 
-        {/* File Upload */}
-        <Card className="bg-gray-800 border-gray-600">
-          <CardHeader>
-            <CardTitle className="text-gray-100">2. Excel Dosyası Yükle</CardTitle>
-            <CardDescription className="text-gray-400">Doldurduğunuz Excel dosyasını buraya yükleyin.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
+            {/* Step 2: Template */}
+            <Card className="bg-gray-800 border-gray-600 relative h-[280px] flex flex-col">
+              <div className="absolute -top-3 left-4">
+                <div className="bg-green-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm">
+                  2
+                </div>
+              </div>
+              <CardHeader className="pt-8 flex-1">
+                <CardTitle className="text-gray-100 flex items-center gap-2">
+                  <Download className="h-5 w-5 text-green-400" />
+                  Şablon İndirin
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Excel şablonunu indirip gerekli bilgileri doldurun
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pb-6">
+                <Button 
+                  onClick={downloadTemplate} 
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Excel Şablonunu İndir
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Step 3: Upload */}
+            <Card className="bg-gray-800 border-gray-600 relative h-[280px] flex flex-col">
+              <div className="absolute -top-3 left-4">
+                <div className="bg-purple-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm">
+                  3
+                </div>
+              </div>
+              <CardHeader className="pt-8 flex-1">
+                <CardTitle className="text-gray-100 flex items-center gap-2">
+                  <Upload className="h-5 w-5 text-purple-400" />
+                  Dosya Yükleyin
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Doldurduğunuz Excel dosyasını sisteme yükleyin
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pb-6 space-y-4">
                 <input
                   type="file"
                   accept=".xlsx,.xls"
@@ -414,29 +460,28 @@ export default function BulkDataEntryPage() {
                 />
                 <label
                   htmlFor="excel-upload"
-                  className="cursor-pointer inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors disabled:opacity-50"
+                  className="cursor-pointer w-full inline-flex items-center justify-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-colors disabled:opacity-50"
                 >
                   <Upload className="h-4 w-4 mr-2" />
                   Dosya Seç
                 </label>
                 {file && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-200">{file.name}</span>
+                  <div className="flex items-center justify-between bg-gray-700 rounded p-2">
+                    <span className="text-gray-200 text-sm truncate">{file.name}</span>
                     <Button
                       onClick={clearData}
                       variant="ghost"
                       size="sm"
                       disabled={isProcessing}
-                      className="text-red-400 hover:text-red-300"
+                      className="text-red-400 hover:text-red-300 h-6 w-6 p-0"
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-3 w-3" />
                     </Button>
                   </div>
                 )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </div>
 
         {/* Data Preview */}
         {data.length > 0 && (
@@ -535,8 +580,40 @@ export default function BulkDataEntryPage() {
                         </TableCell>
                         <TableCell className="text-gray-200">{row.province}</TableCell>
                         <TableCell className="text-gray-200">{row.district}</TableCell>
-                        <TableCell className="text-gray-200">{row.mainCategory}</TableCell>
-                        <TableCell className="text-gray-200">{row.subCategory}</TableCell>
+                        <TableCell className="text-gray-200">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-4 h-4 rounded-full shadow-sm relative overflow-hidden"
+                              style={{ 
+                                backgroundColor: categories.main.find(cat => cat.name === row.mainCategory)?.color || "#3B82F6",
+                                boxShadow: `0 1px 3px ${categories.main.find(cat => cat.name === row.mainCategory)?.color || "#3B82F6"}30`
+                              }}
+                            >
+                              {/* Mini parıltı efekti */}
+                              <div 
+                                className="absolute inset-0 rounded-full bg-gradient-to-br from-white/40 to-transparent"
+                              />
+                            </div>
+                            {row.mainCategory}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-gray-200">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-4 h-4 rounded-full shadow-sm relative overflow-hidden"
+                              style={{ 
+                                backgroundColor: categories.sub.find(cat => cat.name === row.subCategory)?.color || "#3B82F6",
+                                boxShadow: `0 1px 3px ${categories.sub.find(cat => cat.name === row.subCategory)?.color || "#3B82F6"}30`
+                              }}
+                            >
+                              {/* Mini parıltı efekti */}
+                              <div 
+                                className="absolute inset-0 rounded-full bg-gradient-to-br from-white/40 to-transparent"
+                              />
+                            </div>
+                            {row.subCategory}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-red-400 text-xs">{row.error}</TableCell>
                       </TableRow>
                     ))}
@@ -548,5 +625,290 @@ export default function BulkDataEntryPage() {
         )}
       </div>
     </div>
+
+    {/* Detailed Guide Modal */}
+    <Dialog open={showGuideModal} onOpenChange={setShowGuideModal}>
+      <DialogContent className="max-w-6xl max-h-[90vh] bg-gray-900 border-gray-600">
+        <DialogHeader>
+          <DialogTitle className="text-xl text-gray-100 flex items-center gap-2">
+            <span className="text-2xl">📋</span>
+            Toplu Veri Girişi - Detaylı Kılavuz
+          </DialogTitle>
+        </DialogHeader>
+        
+        <ScrollArea className="h-[75vh] pr-4">
+          <div className="space-y-6">
+            {/* Overview */}
+            <Alert className="bg-blue-900/20 border-blue-800">
+              <AlertCircle className="h-4 w-4 text-blue-400" />
+              <AlertTitle className="text-blue-400 text-lg">📋 Genel Bakış</AlertTitle>
+              <AlertDescription className="text-blue-200 mt-3">
+                <p className="mb-3">
+                  Bu özellik ile Excel dosyası kullanarak aynı anda yüzlerce adres kaydı ekleyebilirsiniz. 
+                  İşlem tamamen otomatik olup, her adres için koordinat bulma ve kategori eşleştirme yapılır.
+                </p>
+                <div className="bg-blue-800/30 rounded-lg p-4 mt-4">
+                  <h4 className="font-semibold mb-2">⏱️ İşlem Süresi:</h4>
+                  <ul className="text-sm space-y-1">
+                    <li>• 10 kayıt: ~30 saniye</li>
+                    <li>• 50 kayıt: ~2-3 dakika</li>
+                    <li>• 100+ kayıt: ~5-10 dakika</li>
+                  </ul>
+                </div>
+              </AlertDescription>
+            </Alert>
+
+            {/* Step by Step Guide */}
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Prerequisites */}
+              <Card className="bg-gray-800 border-gray-600">
+                <CardHeader>
+                  <CardTitle className="text-gray-100 flex items-center gap-2">
+                    <span className="bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">!</span>
+                    Önkoşullar
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="text-gray-300">
+                    <h4 className="font-semibold text-yellow-400 mb-2">🏷️ Kategoriler Hazır Olmalı:</h4>
+                    <ul className="text-sm space-y-1 ml-4">
+                      <li>• Risk faktörleri sisteme eklenmiş olmalı</li>
+                      <li>• Her risk faktörü için hizmet türleri tanımlanmalı</li>
+                      <li>• Kategori isimleri Excel'de TAM AYNI yazılmalı</li>
+                    </ul>
+                  </div>
+                  <div className="bg-yellow-900/20 border border-yellow-600 rounded p-3">
+                    <p className="text-yellow-300 text-xs">
+                      💡 <strong>İpucu:</strong> Kategori Yönetimi sayfasından mevcut kategorileri kontrol edin
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* File Requirements */}
+              <Card className="bg-gray-800 border-gray-600">
+                <CardHeader>
+                  <CardTitle className="text-gray-100 flex items-center gap-2">
+                    <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">📄</span>
+                    Dosya Gereksinimleri
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="text-gray-300">
+                    <h4 className="font-semibold text-green-400 mb-2">✅ Desteklenen Formatlar:</h4>
+                    <ul className="text-sm space-y-1 ml-4">
+                      <li>• Excel (.xlsx) - Önerilen</li>
+                      <li>• Eski Excel (.xls)</li>
+                    </ul>
+                    
+                    <h4 className="font-semibold text-red-400 mb-2 mt-3">❌ Desteklenmeyen:</h4>
+                    <ul className="text-sm space-y-1 ml-4">
+                      <li>• CSV dosyaları</li>
+                      <li>• PDF veya Word dosyaları</li>
+                      <li>• Google Sheets (önce Excel'e dönüştürün)</li>
+                    </ul>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Required Columns */}
+            <Card className="bg-gray-800 border-gray-600">
+              <CardHeader>
+                <CardTitle className="text-gray-100 flex items-center gap-2">
+                  <span className="bg-green-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">📊</span>
+                  Gerekli Sütunlar
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div>
+                    <h4 className="font-semibold text-red-400 mb-3">🔴 ZORUNLU Sütunlar:</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="bg-red-900/20 border border-red-600 rounded p-2">
+                        <span className="font-mono text-red-300">İsim</span> - Kişinin adı
+                      </div>
+                      <div className="bg-red-900/20 border border-red-600 rounded p-2">
+                        <span className="font-mono text-red-300">Soyisim</span> - Kişinin soyadı
+                      </div>
+                      <div className="bg-red-900/20 border border-red-600 rounded p-2">
+                        <span className="font-mono text-red-300">İl</span> - Şehir adı (örn: Ankara)
+                      </div>
+                      <div className="bg-red-900/20 border border-red-600 rounded p-2">
+                        <span className="font-mono text-red-300">İlçe</span> - İlçe adı (örn: Çankaya)
+                      </div>
+                      <div className="bg-red-900/20 border border-red-600 rounded p-2">
+                        <span className="font-mono text-red-300">Mahalle</span> - Mahalle adı
+                      </div>
+                      <div className="bg-red-900/20 border border-red-600 rounded p-2">
+                        <span className="font-mono text-red-300">Adres</span> - Detaylı adres
+                      </div>
+                      <div className="bg-red-900/20 border border-red-600 rounded p-2">
+                        <span className="font-mono text-red-300">Risk Faktörü</span> - Sistemdeki kategori adı
+                      </div>
+                      <div className="bg-red-900/20 border border-red-600 rounded p-2">
+                        <span className="font-mono text-red-300">Hizmet Türü</span> - Sistemdeki alt kategori adı
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold text-blue-400 mb-3">🔵 OPSİYONEL Sütunlar:</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="bg-blue-900/20 border border-blue-600 rounded p-2">
+                        <span className="font-mono text-blue-300">Cinsiyet</span> - Erkek/Kadın (boş bırakılabilir)
+                      </div>
+                    </div>
+                    
+                    <div className="bg-yellow-900/20 border border-yellow-600 rounded p-3 mt-4">
+                      <h5 className="font-semibold text-yellow-300 mb-2">⚠️ ÖNEMLİ UYARILAR:</h5>
+                      <ul className="text-yellow-200 text-xs space-y-1">
+                        <li>• Sütun başlıkları AYNEN yukarıdaki gibi olmalı</li>
+                        <li>• Risk faktörü ve hizmet türü isimleri sistemdekilerle TAM EŞLEŞMELİ</li>
+                        <li>• Boş satırlar otomatik atlanır</li>
+                        <li>• Eksik zorunlu alan varsa o satır hata olur</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Processing Details */}
+            <Card className="bg-gray-800 border-gray-600">
+              <CardHeader>
+                <CardTitle className="text-gray-100 flex items-center gap-2">
+                  <span className="bg-purple-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">⚙️</span>
+                  İşlem Detayları
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-6 md:grid-cols-3">
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-green-400">✅ Başarılı İşlem</h4>
+                    <div className="text-sm text-gray-300 space-y-1">
+                      <p>• Kategori eşleştirmesi bulundu</p>
+                      <p>• Adres koordinatları belirlendi</p>
+                      <p>• Veritabanına kaydedildi</p>
+                      <p>• Haritada görünür hale geldi</p>
+                    </div>
+                    <div className="bg-green-900/20 border border-green-600 rounded p-2">
+                      <Badge className="bg-green-600">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Başarılı
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-yellow-400">⚠️ Olası Hatalar</h4>
+                    <div className="text-sm text-gray-300 space-y-1">
+                      <p>• "Kategori bulunamadı"</p>
+                      <p>• "Adres koordinatları bulunamadı"</p>
+                      <p>• "Eksik alanlar: İsim, Soyisim..."</p>
+                      <p>• "Hizmet türü risk faktörüne ait değil"</p>
+                    </div>
+                    <div className="bg-red-900/20 border border-red-600 rounded p-2">
+                      <Badge className="bg-red-600">
+                        <X className="h-3 w-3 mr-1" />
+                        Hata
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-blue-400">🔄 İşlem Durumları</h4>
+                    <div className="text-sm space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-gray-600">Bekliyor</Badge>
+                        <span className="text-gray-300">Henüz işlenmedi</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-blue-600">İşleniyor</Badge>
+                        <span className="text-gray-300">Şu anda işleniyor</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Tips and Best Practices */}
+            <Card className="bg-gray-800 border-gray-600">
+              <CardHeader>
+                <CardTitle className="text-gray-100 flex items-center gap-2">
+                  <span className="bg-yellow-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">💡</span>
+                  İpuçları ve En İyi Uygulamalar
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div>
+                    <h4 className="font-semibold text-green-400 mb-3">✅ YAPILMASI GEREKENLER:</h4>
+                    <ul className="text-sm text-gray-300 space-y-2">
+                      <li className="flex items-start gap-2">
+                        <span className="text-green-400 mt-0.5">•</span>
+                        <span>Önce şablonu indirin ve örnek verileri inceleyin</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-green-400 mt-0.5">•</span>
+                        <span>Kategori isimlerini Kategori Yönetimi'nden kopyalayın</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-green-400 mt-0.5">•</span>
+                        <span>Adresleri mümkün olduğunca detaylı yazın</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-green-400 mt-0.5">•</span>
+                        <span>İşlem başlamadan önce veri önizlemesini kontrol edin</span>
+                      </li>
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold text-red-400 mb-3">❌ YAPILMAMASI GEREKENLER:</h4>
+                    <ul className="text-sm text-gray-300 space-y-2">
+                      <li className="flex items-start gap-2">
+                        <span className="text-red-400 mt-0.5">•</span>
+                        <span>İşlem devam ederken sayfadan çıkmayın</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-red-400 mt-0.5">•</span>
+                        <span>Kategori isimlerini tahmin etmeye çalışmayın</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-red-400 mt-0.5">•</span>
+                        <span>Sütun başlıklarını değiştirmeyin</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-red-400 mt-0.5">•</span>
+                        <span>Hatalı satırları düzeltmeden tekrar yüklemeyin</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+                
+                <div className="bg-blue-900/20 border border-blue-600 rounded p-4 mt-6">
+                  <h5 className="font-semibold text-blue-300 mb-2">🎯 Başarı Oranını Artırma İpuçları:</h5>
+                  <div className="grid gap-3 md:grid-cols-2 text-sm text-blue-200">
+                    <div>
+                      <p><strong>Adres Kalitesi:</strong></p>
+                      <p>• "Atatürk Bulvarı No:123/A" ✅</p>
+                      <p>• "Atatürk Bulvarı" ❌</p>
+                    </div>
+                    <div>
+                      <p><strong>Kategori Eşleştirme:</strong></p>
+                      <p>• Sistemden kopyala-yapıştır yapın</p>
+                      <p>• Büyük/küçük harf uyumuna dikkat edin</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

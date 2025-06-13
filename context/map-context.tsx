@@ -21,7 +21,9 @@ export type Marker = {
   mainCategoryId: string
   subCategoryId: string
   mainCategoryName?: string
+  mainCategoryColor?: string
   subCategoryName?: string
+  subCategoryColor?: string
   createdAt?: string
 }
 
@@ -119,8 +121,8 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
         const queryOptions: any = {
           select: `
             *,
-            main_categories(name),
-            sub_categories(name)
+            main_categories(name, color),
+            sub_categories(name, color)
           `,
           filter: {}
         }
@@ -182,7 +184,9 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
             mainCategoryId: item.main_category_id,
             subCategoryId: item.sub_category_id,
             mainCategoryName: item.main_categories?.name,
+            mainCategoryColor: item.main_categories?.color || "#3B82F6",
             subCategoryName: item.sub_categories?.name,
+            subCategoryColor: item.sub_categories?.color || "#3B82F6",
             createdAt: item.created_at,
           }))
 

@@ -57,6 +57,7 @@ export function FilterPanel() {
           result.data.map((item: any) => ({
             id: item.id,
             name: item.name,
+            color: item.color || "#3B82F6",
           })),
         )
       }
@@ -87,6 +88,7 @@ export function FilterPanel() {
             id: item.id,
             name: item.name,
             mainCategoryId: item.main_category_id,
+            color: item.color || "#3B82F6",
           })),
         )
       }
@@ -194,12 +196,12 @@ export function FilterPanel() {
           </Button>
         </SheetTrigger>
         <SheetContent side="right" className="overflow-y-auto bg-gray-800 border-gray-700 text-gray-100">
-          <SheetHeader className="relative">
+          <SheetHeader className="space-y-3">
             <SheetTitle className="text-gray-100">Filtreleme Seçenekleri</SheetTitle>
-            {/* Result count positioned near close button */}
-            <div className="absolute top-0 right-8 flex items-center">
-              <Badge variant="outline" className="border-gray-600 text-gray-300 bg-gray-700/50 text-xs px-2 py-1">
-                {filteredMarkerCount} sonuç
+            {/* Result count positioned below title */}
+            <div className="flex justify-center">
+              <Badge variant="outline" className="border-gray-600 text-gray-300 bg-gray-700/50 text-sm px-3 py-1">
+                {filteredMarkerCount} sonuç bulundu
               </Badge>
             </div>
           </SheetHeader>
@@ -314,7 +316,21 @@ export function FilterPanel() {
                     <SelectContent className="bg-gray-700 border-gray-600">
                       {mainCategories.map((category) => (
                         <SelectItem key={category.id} value={category.id} className="text-gray-100 focus:bg-gray-600">
-                          {category.name}
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="w-4 h-4 rounded-full shadow-sm relative overflow-hidden"
+                              style={{ 
+                                backgroundColor: category.color,
+                                boxShadow: `0 1px 3px ${category.color}30`
+                              }}
+                            >
+                              {/* Mini parıltı efekti */}
+                              <div 
+                                className="absolute inset-0 rounded-full bg-gradient-to-br from-white/40 to-transparent"
+                              />
+                            </div>
+                            {category.name}
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -338,7 +354,21 @@ export function FilterPanel() {
                     <SelectContent className="bg-gray-700 border-gray-600">
                       {subCategories.map((category) => (
                         <SelectItem key={category.id} value={category.id} className="text-gray-100 focus:bg-gray-600">
-                          {category.name}
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="w-4 h-4 rounded-full shadow-sm relative overflow-hidden"
+                              style={{ 
+                                backgroundColor: category.color,
+                                boxShadow: `0 1px 3px ${category.color}30`
+                              }}
+                            >
+                              {/* Mini parıltı efekti */}
+                              <div 
+                                className="absolute inset-0 rounded-full bg-gradient-to-br from-white/40 to-transparent"
+                              />
+                            </div>
+                            {category.name}
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
