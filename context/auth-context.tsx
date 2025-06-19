@@ -159,10 +159,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         "ADD_ADDRESS",
         "EDIT_ADDRESS",
         "DELETE_ADDRESS",
-        "MANAGE_CATEGORIES",
         "VIEW_CATEGORY_MANAGEMENT",
         "MANAGE_API_KEYS",
         "VIEW_LOGS"
+        // Editor artık MANAGE_CATEGORIES yetkisine sahip değil
       ],
       admin: [
         "VIEW_MAP",

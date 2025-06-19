@@ -79,12 +79,25 @@ function getUserPermissions(role: string): string[] {
       "VIEW_FILTERS",
       "ADD_ADDRESS",
       "EDIT_ADDRESS",
+      "VIEW_CATEGORY_MANAGEMENT",
+      "MANAGE_API_KEYS",
+      "VIEW_LOGS"
+      // Editor artık DELETE_ADDRESS ve MANAGE_CATEGORIES yetkilerine sahip değil
+    ],
+    admin: [
+      "VIEW_MAP",
+      "VIEW_SERVICE_LIST", 
+      "VIEW_FILTERS",
+      "ADD_ADDRESS",
+      "EDIT_ADDRESS",
       "DELETE_ADDRESS",
       "MANAGE_CATEGORIES",
       "VIEW_CATEGORY_MANAGEMENT",
       "MANAGE_API_KEYS",
-      "VIEW_LOGS"
-    ],
+      "VIEW_LOGS",
+      "MANAGE_USERS",
+      "SYSTEM_CONTROL"
+    ]
   }
 
   return permissions[role as keyof typeof permissions] || []

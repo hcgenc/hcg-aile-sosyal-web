@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, startTransition } from "react"
 import { useSupabase } from "@/context/supabase-context"
 import { useAuth } from "@/context/auth-context"
-import { PlusCircle, Trash2, Edit, Check, X, Palette, ChevronDown, FolderTree } from "lucide-react"
+import { PlusCircle, Trash2, Edit, Check, X, Palette, ChevronDown, FolderTree, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -58,7 +58,7 @@ const COLOR_PALETTE = [
 
 export default function CategoryManagementPage() {
   const { supabase } = useSupabase()
-  const { logAction } = useAuth()
+  const { logAction, hasPermission } = useAuth()
 
   // Ana kategoriler
   const [mainCategories, setMainCategories] = useState<MainCategory[]>([])
@@ -645,39 +645,54 @@ export default function CategoryManagementPage() {
         </TabsList>
 
         <TabsContent value="main" className="space-y-6">
-          {/* Ana Kategori Ekleme */}
-          <div className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-800">
-            <Label className="text-base font-semibold mb-4 block">Yeni Risk Faktörü Ekle</Label>
-            <div className="flex gap-2 items-end">
-              <div className="flex-1">
-                <Label htmlFor="newMainCategory" className="mb-2 block text-sm">
-                  Risk Faktörü Adı
-                </Label>
-                <Input
-                  id="newMainCategory"
-                  value={newMainCategoryName}
-                  onChange={(e) => setNewMainCategoryName(e.target.value)}
-                  placeholder="Risk faktörü adı girin"
-                />
+          {/* Ana Kategori Ekleme - Sadece Admin Kullanıcılar İçin */}
+          {hasPermission("MANAGE_CATEGORIES") && (
+            <div className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-800">
+              <Label className="text-base font-semibold mb-4 block">Yeni Risk Faktörü Ekle</Label>
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <Label htmlFor="newMainCategory" className="mb-2 block text-sm">
+                    Risk Faktörü Adı
+                  </Label>
+                  <Input
+                    id="newMainCategory"
+                    value={newMainCategoryName}
+                    onChange={(e) => setNewMainCategoryName(e.target.value)}
+                    placeholder="Risk faktörü adı girin"
+                  />
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <Label className="text-sm">Renk</Label>
+                  <ColorPaletteButton 
+                    selectedColor={newMainCategoryColor}
+                    onColorSelect={setNewMainCategoryColor}
+                  />
+                </div>
+                <Button 
+                  onClick={addMainCategory} 
+                  disabled={!newMainCategoryName.trim()}
+                  className="px-6"
+                >
+                  <PlusCircle className="h-4 w-4 mr-2" />
+                  Ekle
+                </Button>
               </div>
-              <div className="flex flex-col items-center gap-1">
-                <Label className="text-sm">Renk</Label>
-                <ColorPaletteButton 
-                  selectedColor={newMainCategoryColor}
-                  onColorSelect={setNewMainCategoryColor}
-                />
-              </div>
-              <Button 
-                onClick={addMainCategory} 
-                disabled={!newMainCategoryName.trim()}
-                className="px-6"
-              >
-                <PlusCircle className="h-4 w-4 mr-2" />
-                Ekle
-              </Button>
+              <p className="text-xs text-gray-500 mt-2">Risk faktörü adını yazın ve palet ikonuna tıklayarak renk seçin.</p>
             </div>
-            <p className="text-xs text-gray-500 mt-2">Risk faktörü adını yazın ve palet ikonuna tıklayarak renk seçin.</p>
-          </div>
+          )}
+
+          {/* Editor kullanıcıları için bilgilendirme mesajı */}
+          {!hasPermission("MANAGE_CATEGORIES") && (
+            <div className="p-4 border rounded-lg bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2 text-blue-800 dark:text-blue-200">
+                <AlertTriangle className="h-5 w-5" />
+                <Label className="text-base font-semibold">Sadece Görüntüleme</Label>
+              </div>
+              <p className="text-sm text-blue-700 dark:text-blue-300 mt-2">
+                Risk faktörlerini görüntüleyebilirsiniz ancak ekleme, düzenleme veya silme işlemi yapamazsınız.
+              </p>
+            </div>
+          )}
 
           {/* Ana Kategoriler Listesi */}
           <div className="border rounded-md">
@@ -754,39 +769,43 @@ export default function CategoryManagementPage() {
                         </div>
                         <div className="font-medium">{category.name}</div>
                         <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => startEditingMainCategory(category)}
-                            title="Düzenle"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button size="sm" variant="ghost" title="Sil">
-                                <Trash2 className="h-4 w-4 text-red-500" />
+                          {hasPermission("MANAGE_CATEGORIES") && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => startEditingMainCategory(category)}
+                                title="Düzenle"
+                              >
+                                <Edit className="h-4 w-4" />
                               </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Risk Faktörünü Sil</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Bu işlem geri alınamaz. "{category.name}" risk faktörünü silmek istediğinizden emin misiniz?
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>İptal</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => deleteMainCategory(category.id)}
-                                  className="bg-red-500 hover:bg-red-600"
-                                >
-                                  Sil
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button size="sm" variant="ghost" title="Sil">
+                                    <Trash2 className="h-4 w-4 text-red-500" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Risk Faktörünü Sil</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Bu işlem geri alınamaz. "{category.name}" risk faktörünü silmek istediğinizden emin misiniz?
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>İptal</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => deleteMainCategory(category.id)}
+                                      className="bg-red-500 hover:bg-red-600"
+                                    >
+                                      Sil
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </>
+                          )}
                         </div>
                       </>
                     )}
@@ -832,43 +851,59 @@ export default function CategoryManagementPage() {
               </Select>
             </div>
 
-            <div className="flex gap-2 items-end">
-              <div className="flex-1">
-                <Label htmlFor="newSubCategory" className="mb-2 block">
-                  Yeni Hizmet Türü Ekle
-                </Label>
-                <Input
-                  id="newSubCategory"
-                  value={newSubCategoryName}
-                  onChange={(e) => setNewSubCategoryName(e.target.value)}
-                  placeholder="Hizmet türü adı"
-                  disabled={!selectedMainCategoryId}
-                />
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <Label className="text-sm">Renk</Label>
-                {selectedMainCategoryId ? (
-                  <TonePaletteButton 
-                    selectedColor={newSubCategoryColor}
-                    onColorSelect={setNewSubCategoryColor}
-                    baseColor={mainCategories.find(cat => cat.id === selectedMainCategoryId)?.color || "#3B82F6"}
+            {/* Hizmet Türü Ekleme - Sadece Admin Kullanıcılar İçin */}
+            {hasPermission("MANAGE_CATEGORIES") && (
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <Label htmlFor="newSubCategory" className="mb-2 block">
+                    Yeni Hizmet Türü Ekle
+                  </Label>
+                  <Input
+                    id="newSubCategory"
+                    value={newSubCategoryName}
+                    onChange={(e) => setNewSubCategoryName(e.target.value)}
+                    placeholder="Hizmet türü adı"
+                    disabled={!selectedMainCategoryId}
                   />
-                ) : (
-                  <Button 
-                    variant="outline" 
-                    className="w-10 h-10 p-2 flex items-center justify-center opacity-50 cursor-not-allowed"
-                    disabled
-                    title="Önce risk faktörü seçin"
-                  >
-                    <Palette className="h-5 w-5 text-gray-400" />
-                  </Button>
-                )}
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <Label className="text-sm">Renk</Label>
+                  {selectedMainCategoryId ? (
+                    <TonePaletteButton 
+                      selectedColor={newSubCategoryColor}
+                      onColorSelect={setNewSubCategoryColor}
+                      baseColor={mainCategories.find(cat => cat.id === selectedMainCategoryId)?.color || "#3B82F6"}
+                    />
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      className="w-10 h-10 p-2 flex items-center justify-center opacity-50 cursor-not-allowed"
+                      disabled
+                      title="Önce risk faktörü seçin"
+                    >
+                      <Palette className="h-5 w-5 text-gray-400" />
+                    </Button>
+                  )}
+                </div>
+                <Button onClick={addSubCategory} disabled={!selectedMainCategoryId || !newSubCategoryName.trim()}>
+                  <PlusCircle className="h-4 w-4 mr-2" />
+                  Ekle
+                </Button>
               </div>
-              <Button onClick={addSubCategory} disabled={!selectedMainCategoryId || !newSubCategoryName.trim()}>
-                <PlusCircle className="h-4 w-4 mr-2" />
-                Ekle
-              </Button>
-            </div>
+            )}
+
+            {/* Editor kullanıcıları için bilgilendirme mesajı */}
+            {!hasPermission("MANAGE_CATEGORIES") && (
+              <div className="p-4 border rounded-lg bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800">
+                <div className="flex items-center gap-2 text-blue-800 dark:text-blue-200">
+                  <AlertTriangle className="h-5 w-5" />
+                  <Label className="text-base font-semibold">Sadece Görüntüleme</Label>
+                </div>
+                <p className="text-sm text-blue-700 dark:text-blue-300 mt-2">
+                  Hizmet türlerini görüntüleyebilirsiniz ancak ekleme, düzenleme veya silme işlemi yapamazsınız.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Alt Kategoriler Listesi */}
@@ -988,42 +1023,46 @@ export default function CategoryManagementPage() {
                             <span>{mainCategory?.name}</span>
                           </div>
                           <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setEditSubCategoryId(category.id)
-                                setEditSubCategoryName(category.name)
-                                setEditSubCategoryColor(category.color || "#3B82F6")
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button size="sm" variant="ghost">
-                                  <Trash2 className="h-4 w-4 text-red-500" />
+                            {hasPermission("MANAGE_CATEGORIES") && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setEditSubCategoryId(category.id)
+                                    setEditSubCategoryName(category.name)
+                                    setEditSubCategoryColor(category.color || "#3B82F6")
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4" />
                                 </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Hizmet Türünü Sil</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Bu işlem geri alınamaz. "{category.name}" hizmet türünü silmek istediğinizden emin misiniz?
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>İptal</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => deleteSubCategory(category.id)}
-                                    className="bg-red-500 hover:bg-red-600"
-                                  >
-                                    Sil
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
+
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button size="sm" variant="ghost">
+                                      <Trash2 className="h-4 w-4 text-red-500" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Hizmet Türünü Sil</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Bu işlem geri alınamaz. "{category.name}" hizmet türünü silmek istediğinizden emin misiniz?
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>İptal</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => deleteSubCategory(category.id)}
+                                        className="bg-red-500 hover:bg-red-600"
+                                      >
+                                        Sil
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </>
+                            )}
                           </div>
                         </>
                       )}

@@ -128,6 +128,65 @@ export async function POST(request: NextRequest) {
     if (!securityResult.success && securityResult.response) {
       return applySecurityHeaders(securityResult.response)
     }
+
+    // Role-based category management control
+    const categoryTables = ['main_categories', 'sub_categories']
+    const writeOperations = ['INSERT', 'UPDATE', 'DELETE', 'UPSERT']
+    
+    if (categoryTables.includes(sanitizedTable) && writeOperations.includes(method?.toUpperCase())) {
+      // Require authentication for category write operations
+      if (!securityResult.user) {
+        logSecurityEvent('CATEGORY_WRITE_NO_AUTH', { table: sanitizedTable, method }, request)
+        const response = NextResponse.json(
+          { error: 'Authentication required for category operations' }, 
+          { status: 401 }
+        )
+        return applySecurityHeaders(response)
+      }
+
+      // Only admin users can perform category write operations
+      if (securityResult.user.role !== 'admin') {
+        logSecurityEvent('CATEGORY_WRITE_INSUFFICIENT_PERMISSION', { 
+          table: sanitizedTable, 
+          method, 
+          userRole: securityResult.user.role,
+          userId: securityResult.user.userId 
+        }, request)
+        const response = NextResponse.json(
+          { error: 'Insufficient permissions. Only admin users can modify categories.' }, 
+          { status: 403 }
+        )
+        return applySecurityHeaders(response)
+      }
+    }
+
+    // Role-based address deletion control
+    if (sanitizedTable === 'addresses' && method?.toUpperCase() === 'DELETE') {
+      // Require authentication for address deletion
+      if (!securityResult.user) {
+        logSecurityEvent('ADDRESS_DELETE_NO_AUTH', { table: sanitizedTable, method }, request)
+        const response = NextResponse.json(
+          { error: 'Authentication required for address deletion' }, 
+          { status: 401 }
+        )
+        return applySecurityHeaders(response)
+      }
+
+      // Only admin users can delete addresses (editor users can't)
+      if (securityResult.user.role !== 'admin') {
+        logSecurityEvent('ADDRESS_DELETE_INSUFFICIENT_PERMISSION', { 
+          table: sanitizedTable, 
+          method, 
+          userRole: securityResult.user.role,
+          userId: securityResult.user.userId 
+        }, request)
+        const response = NextResponse.json(
+          { error: 'Insufficient permissions. Only admin users can delete addresses.' }, 
+          { status: 403 }
+        )
+        return applySecurityHeaders(response)
+      }
+    }
     
     const { 
       data, 
