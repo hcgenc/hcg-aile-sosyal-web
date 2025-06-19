@@ -46,7 +46,7 @@ export function SideMenu() {
       name: "Kategori Yönetimi",
       path: "/kategori-yonetimi",
       icon: <FolderTree className="mr-3 h-5 w-5" />,
-      permission: "MANAGE_CATEGORIES",
+      permission: "VIEW_CATEGORY_MANAGEMENT",
     },
     {
       name: "Hizmet Alanların Listesi",
