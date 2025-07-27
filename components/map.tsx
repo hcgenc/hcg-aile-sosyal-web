@@ -154,12 +154,12 @@ export function Map() {
         </div>
       )}
 
-      {/* Marker count indicator - positioned below the map view button */}
+      {/* Marker count indicator - positioned further down */}
       {mapMounted && (
-        <div className="absolute top-52 right-4 z-10 bg-gray-800 px-3 py-2 rounded-md text-sm text-gray-200 border border-gray-600 shadow-lg">
+        <div className="absolute top-72 right-4 z-10 bg-gray-800 px-3 py-2 rounded-md text-sm text-gray-200 border border-gray-600 shadow-lg">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-            <span>{markers.length}</span>
+            <span>{markers.length} kayıt</span>
           </div>
         </div>
       )}

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Filter, Layers, MapPin, MapIcon } from "lucide-react"
+import { Filter, Layers, MapPin, MapIcon, BarChart3 } from "lucide-react"
 import { useMap } from "@/context/map-context"
 import { useSupabase } from "@/context/supabase-context"
 import { useAuth } from "@/context/auth-context"
@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ServiceStatistics } from "@/components/service-statistics"
 import type { MainCategory, SubCategory } from "@/types/categories"
 import type { MapMode } from "@/context/map-context"
 
@@ -32,6 +34,9 @@ export function FilterPanel() {
 
   // Harita modu için state
   const [mapTypeOpen, setMapTypeOpen] = useState(false)
+  
+  // İstatistik modal state
+  const [statisticsOpen, setStatisticsOpen] = useState(false)
 
   // Active filter count - calculate from current markers and filter
   const [activeFilterCount, setActiveFilterCount] = useState(0)
@@ -399,7 +404,7 @@ export function FilterPanel() {
           <Button
             variant="outline"
             size="sm"
-            className="h-10 px-4 py-2 bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600"
+            className="h-10 px-4 py-2 bg-gray-700 border-gray-600 text-gray-100 hover:bg-gray-600 min-w-[160px]"
           >
             {mapMode === "map" && <MapIcon className="h-4 w-4 mr-2" />}
             {mapMode === "satellite" && <Layers className="h-4 w-4 mr-2" />}
@@ -441,6 +446,27 @@ export function FilterPanel() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* İstatistik Butonu */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setStatisticsOpen(true)}
+        className="h-10 px-4 py-2 bg-purple-700 border-purple-600 text-white hover:bg-purple-600 min-w-[160px]"
+      >
+        <BarChart3 className="h-4 w-4 mr-2" />
+        İstatistikler
+      </Button>
+
+      {/* İstatistik Modal */}
+      <Dialog open={statisticsOpen} onOpenChange={setStatisticsOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-gray-800 border-gray-600">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-gray-100">Hizmet İstatistikleri</DialogTitle>
+          </DialogHeader>
+          <ServiceStatistics addresses={markers} isLoading={false} />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
