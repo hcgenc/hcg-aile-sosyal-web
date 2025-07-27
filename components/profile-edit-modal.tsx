@@ -26,7 +26,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Save, X, User, MapPin, Home, Tag, Map, Satellite, Globe } from "lucide-react"
+import { Loader2, Save, X, User, MapPin, Home, Tag, Map, Satellite, Globe, AlertCircle } from "lucide-react"
 import { YandexMap } from "@/components/yandex-map"
 import { geocodeAddressEnhanced, reverseGeocode } from "@/lib/yandex-maps"
 

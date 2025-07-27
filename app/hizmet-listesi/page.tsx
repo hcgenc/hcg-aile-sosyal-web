@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useSupabase } from "@/context/supabase-context"
 import { useMap } from "@/context/map-context"
 import { useAuth } from "@/context/auth-context"
-import { Trash2, MapPin, Search, AlertTriangle, Database } from "lucide-react"
+import { Trash2, MapPin, Search, AlertTriangle, Database, ChevronLeft, ChevronRight, Edit } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -30,9 +30,21 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { toast } from "@/components/ui/use-toast"
 import type { Marker } from "@/context/map-context"
 import { ServiceStatistics } from "@/components/service-statistics"
+import { ProfileEditModal } from "@/components/profile-edit-modal"
+
+// Constants for pagination
+const PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
+const DEFAULT_PAGE_SIZE = 50
 
 export default function ServiceListPage() {
   const router = useRouter()
@@ -42,10 +54,29 @@ export default function ServiceListPage() {
 
   const [addresses, setAddresses] = useState<Marker[]>([])
   const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false)
   const [adminPassword, setAdminPassword] = useState("")
   const [isDeleting, setIsDeleting] = useState(false)
+  
+  // Edit modal state
+  const [editingAddress, setEditingAddress] = useState<Marker | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+
+  // Debounce search term to prevent excessive filtering
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+      setCurrentPage(1) // Reset to first page on search
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [searchTerm])
 
   // Adresleri getir
   const loadAddresses = async () => {
@@ -152,8 +183,8 @@ export default function ServiceListPage() {
         description: "Adres başarıyla silindi.",
       })
 
-      // Listeyi ve haritayı güncelle
-      loadAddresses()
+      // Update the list immediately without reloading all data
+      setAddresses(prev => prev.filter(addr => addr.id !== id))
       refreshMarkers()
     } catch (error) {
       console.error("Adres silinirken hata:", error)
@@ -288,13 +319,23 @@ export default function ServiceListPage() {
     }, 5000)
   }
 
+  // Handle edit address
+  const handleEditAddress = (address: Marker) => {
+    setEditingAddress(address)
+    setIsEditModalOpen(true)
+    logAction(
+      "EDIT_ADDRESS_INITIATED",
+      `Started editing address: ${address.firstName} ${address.lastName}`,
+    )
+  }
+
   // Optimized search with useMemo to prevent freezing
   const filteredAddresses = useMemo(() => {
-    if (!searchTerm.trim()) {
+    if (!debouncedSearchTerm.trim()) {
       return addresses
     }
 
-    const searchLower = searchTerm.toLowerCase().trim()
+    const searchLower = debouncedSearchTerm.toLowerCase().trim()
     const searchWords = searchLower.split(/\s+/) // Split by whitespace to handle multiple words
 
     return addresses.filter((item) => {
@@ -319,7 +360,37 @@ export default function ServiceListPage() {
       // Check if all search words are found in the searchable text
       return searchWords.every((word) => searchableText.includes(word))
     })
-  }, [addresses, searchTerm])
+  }, [addresses, debouncedSearchTerm])
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredAddresses.length / pageSize)
+  const startIndex = (currentPage - 1) * pageSize
+  const endIndex = startIndex + pageSize
+  const currentPageData = filteredAddresses.slice(startIndex, endIndex)
+
+  // Handle page size change
+  const handlePageSizeChange = (newSize: string) => {
+    setPageSize(Number(newSize))
+    setCurrentPage(1) // Reset to first page
+  }
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages = []
+    const maxPagesToShow = 5
+    let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2))
+    let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1)
+
+    if (endPage - startPage + 1 < maxPagesToShow) {
+      startPage = Math.max(1, endPage - maxPagesToShow + 1)
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i)
+    }
+
+    return pages
+  }
 
   return (
     <div className="container py-10 px-4 max-w-7xl mx-auto bg-gray-900 min-h-screen pt-20 md:pt-10">
@@ -438,13 +509,31 @@ export default function ServiceListPage() {
         )}
       </div>
 
-      {/* Sonuç sayısı */}
-      {searchTerm && (
-        <div className="mb-4 text-sm text-gray-400">
+      {/* Sonuç sayısı ve sayfalama kontrolleri */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+        <div className="text-sm text-gray-400">
           {filteredAddresses.length} sonuç bulundu
-          {searchTerm && ` "${searchTerm}" için`}
+          {debouncedSearchTerm && ` "${debouncedSearchTerm}" için`}
         </div>
-      )}
+        
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-400">Sayfa başına:</span>
+            <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+              <SelectTrigger className="w-20 h-8 bg-gray-800 border-gray-600">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-800 border-gray-600">
+                {PAGE_SIZE_OPTIONS.map(size => (
+                  <SelectItem key={size} value={size.toString()}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
 
       {/* Tablo */}
       <div className="border rounded-md overflow-hidden border-gray-600">
@@ -470,14 +559,14 @@ export default function ServiceListPage() {
                     Veriler yükleniyor...
                   </TableCell>
                 </TableRow>
-              ) : filteredAddresses.length === 0 ? (
+              ) : currentPageData.length === 0 ? (
                 <TableRow className="border-gray-600">
                   <TableCell colSpan={9} className="text-center py-8 text-gray-300">
-                    {searchTerm ? "Arama kriterlerine uygun kayıt bulunamadı." : "Henüz kayıtlı adres bulunmamaktadır."}
+                    {debouncedSearchTerm ? "Arama kriterlerine uygun kayıt bulunamadı." : "Henüz kayıtlı adres bulunmamaktadır."}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredAddresses.map((address) => (
+                currentPageData.map((address) => (
                   <TableRow key={address.id} className="border-gray-600 hover:bg-gray-800">
                     <TableCell className="text-gray-200 font-medium">
                       <div className="flex flex-col">
@@ -566,6 +655,18 @@ export default function ServiceListPage() {
                           <MapPin className="h-4 w-4" />
                         </Button>
 
+                        {user?.role === 'admin' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleEditAddress(address)}
+                            title="Düzenle"
+                            className="text-green-400 hover:text-green-300 hover:bg-gray-700"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
+
                         {hasPermission("DELETE_ADDRESS") && (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -613,8 +714,98 @@ export default function ServiceListPage() {
         </div>
       </div>
 
+      {/* Pagination Controls */}
+      {!isLoading && filteredAddresses.length > 0 && (
+        <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="text-sm text-gray-400">
+            Gösterilen: {startIndex + 1}-{Math.min(endIndex, filteredAddresses.length)} / {filteredAddresses.length}
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="bg-gray-800 border-gray-600 hover:bg-gray-700"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            
+            {currentPage > 3 && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(1)}
+                  className="bg-gray-800 border-gray-600 hover:bg-gray-700 hidden sm:inline-flex"
+                >
+                  1
+                </Button>
+                {currentPage > 4 && <span className="text-gray-500 hidden sm:inline">...</span>}
+              </>
+            )}
+            
+            {getPageNumbers().map(page => (
+              <Button
+                key={page}
+                variant={page === currentPage ? "default" : "outline"}
+                size="sm"
+                onClick={() => setCurrentPage(page)}
+                className={page === currentPage 
+                  ? "bg-blue-600 hover:bg-blue-700" 
+                  : "bg-gray-800 border-gray-600 hover:bg-gray-700"
+                }
+              >
+                {page}
+              </Button>
+            ))}
+            
+            {currentPage < totalPages - 2 && (
+              <>
+                {currentPage < totalPages - 3 && <span className="text-gray-500 hidden sm:inline">...</span>}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(totalPages)}
+                  className="bg-gray-800 border-gray-600 hover:bg-gray-700 hidden sm:inline-flex"
+                >
+                  {totalPages}
+                </Button>
+              </>
+            )}
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="bg-gray-800 border-gray-600 hover:bg-gray-700"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Responsive info */}
       <div className="mt-4 text-xs text-gray-500 lg:hidden">* Adres bilgileri masaüstü görünümünde gösterilir</div>
+
+      {/* Edit Modal */}
+      {editingAddress && (
+        <ProfileEditModal
+          marker={editingAddress}
+          isOpen={isEditModalOpen}
+          onOpenChange={(open) => {
+            setIsEditModalOpen(open)
+            if (!open) {
+              setEditingAddress(null)
+              // Refresh the addresses list after editing
+              loadAddresses()
+            }
+          }}
+        />
+      )}
     </div>
   )
 }
