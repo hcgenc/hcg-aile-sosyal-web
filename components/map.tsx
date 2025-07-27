@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react"
 import { useMap } from "@/context/map-context"
 import { YandexMap } from "./yandex-map"
 import { MarkerPopup } from "./marker-popup"
+import { ProfileEditModal } from "./profile-edit-modal"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Loader2 } from "lucide-react"
 
@@ -20,6 +21,7 @@ export function Map() {
     forceRefreshMarkers,
   } = useMap()
   const [isPopupOpen, setIsPopupOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [mapMounted, setMapMounted] = useState(false)
 
   // Force refresh markers when map component mounts
@@ -123,6 +125,18 @@ export function Map() {
     }
   }, [selectedMarker])
 
+  // Handle edit button click
+  const handleEditClick = useCallback(() => {
+    setIsPopupOpen(false)
+    setIsEditModalOpen(true)
+  }, [])
+
+  // Handle close popup
+  const handleClosePopup = useCallback(() => {
+    setIsPopupOpen(false)
+    setSelectedMarker(null)
+  }, [setSelectedMarker])
+
   // Debug logging
   useEffect(() => {
     console.log(`Map component: ${markers.length} markers, loading: ${isLoading}, mounted: ${mapMounted}`)
@@ -167,10 +181,29 @@ export function Map() {
           if (!open) setSelectedMarker(null)
         }}
       >
-        <DialogContent className="p-0 border-none max-w-md">
-          {selectedMarker && <MarkerPopup marker={selectedMarker} />}
+        <DialogContent className="p-0 border-none max-w-md" hideClose>
+          {selectedMarker && (
+            <MarkerPopup 
+              marker={selectedMarker} 
+              onEdit={handleEditClick}
+              onClose={handleClosePopup}
+            />
+          )}
         </DialogContent>
       </Dialog>
+
+      {/* Profile Edit Modal */}
+      <ProfileEditModal
+        marker={selectedMarker}
+        isOpen={isEditModalOpen}
+        onOpenChange={(open) => {
+          setIsEditModalOpen(open)
+          if (!open) {
+            // When edit modal closes, clear selected marker
+            setSelectedMarker(null)
+          }
+        }}
+      />
     </>
   )
 }

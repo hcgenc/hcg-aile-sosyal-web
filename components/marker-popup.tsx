@@ -1,11 +1,14 @@
 import type { Marker } from "@/context/map-context"
-import { MapPin, User, Home, Clock, Users } from "lucide-react"
+import { MapPin, User, Home, Clock, Users, Edit3, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 interface MarkerPopupProps {
   marker: Marker
+  onEdit?: () => void
+  onClose?: () => void
 }
 
-export function MarkerPopup({ marker }: MarkerPopupProps) {
+export function MarkerPopup({ marker, onEdit, onClose }: MarkerPopupProps) {
   // Önce hizmet türü rengini kullan, sonra ana kategori rengini
   let color = marker.subCategoryColor || marker.mainCategoryColor || "#3B82F6"
   
@@ -43,7 +46,7 @@ export function MarkerPopup({ marker }: MarkerPopupProps) {
     <div className="w-full overflow-hidden rounded-lg bg-gray-800 text-gray-100">
       {/* Dynamic Header */}
       <div 
-        className="p-3 flex items-center gap-3"
+        className="p-3 flex items-center gap-3 relative"
         style={{
           background: `linear-gradient(to right, ${color}, ${color}dd)`
         }}
@@ -51,7 +54,7 @@ export function MarkerPopup({ marker }: MarkerPopupProps) {
         <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
           <User className="h-5 w-5 text-white" />
         </div>
-        <div className="text-white">
+        <div className="text-white flex-1">
           <h3 className="font-bold text-base leading-tight">
             {marker.firstName} {lastName}
           </h3>
@@ -67,6 +70,30 @@ export function MarkerPopup({ marker }: MarkerPopupProps) {
               </div>
             )}
           </div>
+        </div>
+        
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2">
+          {onEdit && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onEdit}
+              className="w-8 h-8 p-0 hover:bg-white/20 text-white"
+            >
+              <Edit3 className="h-4 w-4" />
+            </Button>
+          )}
+          {onClose && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="w-8 h-8 p-0 hover:bg-white/20 text-white"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
 

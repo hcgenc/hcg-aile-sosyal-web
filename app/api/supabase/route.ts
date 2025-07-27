@@ -189,20 +189,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Role-based address deletion control
-    if (sanitizedTable === 'addresses' && method?.toUpperCase() === 'DELETE') {
-      // Require authentication for address deletion
+    // Role-based address operations control
+    const addressWriteOperations = ['UPDATE', 'DELETE']
+    if (sanitizedTable === 'addresses' && addressWriteOperations.includes(method?.toUpperCase())) {
+      // Require authentication for address write operations
       if (!securityResult.user) {
-        logSecurityEvent('ADDRESS_DELETE_NO_AUTH', { table: sanitizedTable, method }, request)
+        logSecurityEvent('ADDRESS_WRITE_NO_AUTH', { table: sanitizedTable, method }, request)
         const response = NextResponse.json(
-          { error: 'Authentication required for address deletion' }, 
+          { error: 'Authentication required for address operations' }, 
           { status: 401 }
         )
         return applySecurityHeaders(response)
       }
 
-      // Only admin users can delete addresses (editor users can't)
-      if (securityResult.user.role !== 'admin') {
+      // For DELETE operations, only admin users can delete addresses
+      if (method?.toUpperCase() === 'DELETE' && securityResult.user.role !== 'admin') {
         logSecurityEvent('ADDRESS_DELETE_INSUFFICIENT_PERMISSION', { 
           table: sanitizedTable, 
           method, 
@@ -211,6 +212,21 @@ export async function POST(request: NextRequest) {
         }, request)
         const response = NextResponse.json(
           { error: 'Insufficient permissions. Only admin users can delete addresses.' }, 
+          { status: 403 }
+        )
+        return applySecurityHeaders(response)
+      }
+
+      // For UPDATE operations, both admin and editor users can update addresses
+      if (method?.toUpperCase() === 'UPDATE' && !['admin', 'editor'].includes(securityResult.user.role)) {
+        logSecurityEvent('ADDRESS_UPDATE_INSUFFICIENT_PERMISSION', { 
+          table: sanitizedTable, 
+          method, 
+          userRole: securityResult.user.role,
+          userId: securityResult.user.userId 
+        }, request)
+        const response = NextResponse.json(
+          { error: 'Insufficient permissions. Only admin and editor users can update addresses.' }, 
           { status: 403 }
         )
         return applySecurityHeaders(response)
