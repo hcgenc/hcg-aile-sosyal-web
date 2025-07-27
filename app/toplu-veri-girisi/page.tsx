@@ -2,12 +2,12 @@
 
 import type React from "react"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useSupabase } from "@/context/supabase-context"
 import { useMap } from "@/context/map-context"
 import { useAuth } from "@/context/auth-context"
-import { Upload, FileSpreadsheet, Download, AlertCircle, CheckCircle, X, MapPin } from "lucide-react"
+import { Upload, FileSpreadsheet, Download, AlertCircle, CheckCircle, X, MapPin, Square, Pause } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -52,12 +52,16 @@ export default function BulkDataEntryPage() {
   const [file, setFile] = useState<File | null>(null)
   const [data, setData] = useState<ExcelRow[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
+  const [isCancelled, setIsCancelled] = useState(false)
   const [processingStats, setProcessingStats] = useState<ProcessingStats>({
     total: 0,
     processed: 0,
     success: 0,
     errors: 0,
   })
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const processingStateRef = useRef<'running' | 'paused' | 'cancelled' | 'stopped'>('stopped')
   const [categories, setCategories] = useState<{
     main: Array<{ id: string; name: string; color: string }>
     sub: Array<{ id: string; name: string; mainCategoryId: string; color: string }>
@@ -216,7 +220,13 @@ export default function BulkDataEntryPage() {
   const processData = async () => {
     if (!supabase || data.length === 0) return
 
+    // Initialize processing
     setIsProcessing(true)
+    setIsPaused(false)
+    setIsCancelled(false)
+    processingStateRef.current = 'running'
+    abortControllerRef.current = new AbortController()
+    
     setProcessingStats({ total: data.length, processed: 0, success: 0, errors: 0 })
 
     const updatedData = [...data]
@@ -224,6 +234,26 @@ export default function BulkDataEntryPage() {
     let errorCount = 0
 
     for (let i = 0; i < updatedData.length; i++) {
+      // Check if processing should be stopped
+      if (processingStateRef.current === 'cancelled') {
+        console.log('Processing cancelled by user')
+        break
+      }
+
+      // Check if processing should be paused
+      while (processingStateRef.current === 'paused') {
+        await new Promise(resolve => setTimeout(resolve, 500))
+        if (processingStateRef.current === 'cancelled') {
+          console.log('Processing cancelled while paused')
+          break
+        }
+      }
+
+      // If cancelled while paused, break out of the loop
+      if (processingStateRef.current === 'cancelled') {
+        break
+      }
+
       const row = updatedData[i]
 
       if (row.status === "error") {
@@ -250,7 +280,9 @@ export default function BulkDataEntryPage() {
           throw new Error("Kategori bulunamadı")
         }
 
-        // Geocode address
+        // Geocode address (check for cancellation before async operations)
+        if (processingStateRef.current === 'cancelled') break
+        
         const geocodeResult = await geocodeAddressEnhanced(row.province, row.district, row.neighborhood, row.address)
 
         if (!geocodeResult) {
@@ -260,7 +292,9 @@ export default function BulkDataEntryPage() {
         row.latitude = geocodeResult.coords[0]
         row.longitude = geocodeResult.coords[1]
 
-        // Save to database
+        // Save to database (check for cancellation before database operations)
+        if (processingStateRef.current === 'cancelled') break
+        
         const result = await supabase.insert("addresses", {
           first_name: row.firstName,
           last_name: row.lastName,
@@ -280,6 +314,12 @@ export default function BulkDataEntryPage() {
         row.status = "success"
         successCount++
       } catch (error) {
+        // If processing was cancelled, don't mark as error
+        if (processingStateRef.current === 'cancelled') {
+          row.status = "pending" // Reset to pending state
+          break
+        }
+        
         row.status = "error"
         row.error = error instanceof Error ? error.message : "Bilinmeyen hata"
         errorCount++
@@ -294,20 +334,28 @@ export default function BulkDataEntryPage() {
 
       setData([...updatedData])
 
-      // Small delay to prevent overwhelming the API
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      // Small delay to prevent overwhelming the API (check for cancellation during delay)
+      if (processingStateRef.current !== 'cancelled') {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
     }
 
-    await logAction("BULK_DATA_IMPORT", `Imported ${successCount} addresses, ${errorCount} errors`)
+    // Final processing state
+    if (processingStateRef.current !== 'cancelled') {
+      await logAction("BULK_DATA_IMPORT", `Imported ${successCount} addresses, ${errorCount} errors`)
 
-    toast({
-      title: "İşlem Tamamlandı",
-      description: `${successCount} adres başarıyla kaydedildi, ${errorCount} hata oluştu.`,
-    })
+      toast({
+        title: "İşlem Tamamlandı",
+        description: `${successCount} adres başarıyla kaydedildi, ${errorCount} hata oluştu.`,
+      })
 
-    // Refresh map markers
-    refreshMarkers()
+      // Refresh map markers
+      refreshMarkers()
+    }
+
     setIsProcessing(false)
+    setIsPaused(false)
+    processingStateRef.current = 'stopped'
   }
 
   // Download template
@@ -339,11 +387,57 @@ export default function BulkDataEntryPage() {
     logAction("DOWNLOAD_TEMPLATE", "Downloaded bulk data entry template")
   }
 
+  // Pause processing
+  const pauseProcessing = () => {
+    processingStateRef.current = 'paused'
+    setIsPaused(true)
+    toast({
+      title: "İşlem Duraklatıldı",
+      description: "Veri işleme duraklatıldı. Devam etmek için 'Devam Et' butonuna basın.",
+    })
+  }
+
+  // Resume processing
+  const resumeProcessing = () => {
+    processingStateRef.current = 'running'
+    setIsPaused(false)
+    toast({
+      title: "İşlem Devam Ediyor",
+      description: "Veri işleme kaldığı yerden devam ediyor.",
+    })
+  }
+
+  // Cancel processing
+  const cancelProcessing = () => {
+    processingStateRef.current = 'cancelled'
+    setIsCancelled(true)
+    setIsProcessing(false)
+    setIsPaused(false)
+    
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    
+    toast({
+      title: "İşlem İptal Edildi",
+      description: "Veri işleme iptal edildi. Şu ana kadar işlenen veriler kaydedildi.",
+      variant: "destructive",
+    })
+  }
+
   // Clear data
   const clearData = () => {
+    // Cancel any ongoing processing first
+    if (isProcessing) {
+      cancelProcessing()
+    }
+    
     setFile(null)
     setData([])
     setProcessingStats({ total: 0, processed: 0, success: 0, errors: 0 })
+    setIsPaused(false)
+    setIsCancelled(false)
+    processingStateRef.current = 'stopped'
   }
 
   // Check permissions
@@ -495,14 +589,44 @@ export default function BulkDataEntryPage() {
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button
-                    onClick={processData}
-                    disabled={isProcessing || data.every((row) => row.status === "error")}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    <MapPin className="h-4 w-4 mr-2" />
-                    Verileri İşle
-                  </Button>
+                  {!isProcessing ? (
+                    <Button
+                      onClick={processData}
+                      disabled={data.every((row) => row.status === "error")}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <MapPin className="h-4 w-4 mr-2" />
+                      Verileri İşle
+                    </Button>
+                  ) : (
+                    <>
+                      {!isPaused ? (
+                        <Button
+                          onClick={pauseProcessing}
+                          className="bg-yellow-600 hover:bg-yellow-700"
+                        >
+                          <Pause className="h-4 w-4 mr-2" />
+                          Durdur
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={resumeProcessing}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          <MapPin className="h-4 w-4 mr-2" />
+                          Devam Et
+                        </Button>
+                      )}
+                      <Button
+                        onClick={cancelProcessing}
+                        variant="destructive"
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        <Square className="h-4 w-4 mr-2" />
+                        İptal Et
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -511,7 +635,19 @@ export default function BulkDataEntryPage() {
               {isProcessing && (
                 <div className="mb-6 space-y-2">
                   <div className="flex justify-between text-sm text-gray-400">
-                    <span>İşleniyor...</span>
+                    <span className="flex items-center gap-2">
+                      {isPaused ? (
+                        <>
+                          <Pause className="h-4 w-4 text-yellow-400" />
+                          <span className="text-yellow-400">Duraklatıldı</span>
+                        </>
+                      ) : (
+                        <>
+                          <div className="animate-spin h-4 w-4 border-2 border-blue-400 border-t-transparent rounded-full"></div>
+                          <span>İşleniyor...</span>
+                        </>
+                      )}
+                    </span>
                     <span>
                       {processingStats.processed} / {processingStats.total}
                     </span>
@@ -520,7 +656,21 @@ export default function BulkDataEntryPage() {
                   <div className="flex gap-4 text-xs">
                     <span className="text-green-400">Başarılı: {processingStats.success}</span>
                     <span className="text-red-400">Hata: {processingStats.errors}</span>
+                    {isPaused && <span className="text-yellow-400">● Duraklatıldı</span>}
                   </div>
+                </div>
+              )}
+              
+              {/* Completion Message */}
+              {isCancelled && (
+                <div className="mb-6 p-4 bg-red-900/20 border border-red-600 rounded-lg">
+                  <div className="flex items-center gap-2 text-red-400">
+                    <Square className="h-4 w-4" />
+                    <span className="font-semibold">İşlem İptal Edildi</span>
+                  </div>
+                  <p className="text-red-300 text-sm mt-1">
+                    {processingStats.success} adres başarıyla kaydedildi. İşlem iptal edilmeden önceki veriler korundu.
+                  </p>
                 </div>
               )}
 
@@ -550,8 +700,15 @@ export default function BulkDataEntryPage() {
                             </Badge>
                           )}
                           {row.status === "processing" && (
-                            <Badge variant="secondary" className="bg-blue-600">
-                              İşleniyor
+                            <Badge variant="secondary" className={isPaused ? "bg-yellow-600" : "bg-blue-600"}>
+                              {isPaused ? (
+                                <>
+                                  <Pause className="h-3 w-3 mr-1" />
+                                  Duraklatıldı
+                                </>
+                              ) : (
+                                <>İşleniyor</>
+                              )}
                             </Badge>
                           )}
                           {row.status === "success" && (

@@ -68,9 +68,9 @@ const MapContext = createContext<MapContextType>({
   setFilter: () => {},
   refreshMarkers: async () => {},
   forceRefreshMarkers: async () => {},
-  mapCenter: [39.92, 32.85], // Ankara, Turkey
+  mapCenter: [38.3687, 34.0253], // Aksaray, Turkey
   setMapCenter: () => {},
-  mapZoom: 6,
+  mapZoom: 11,
   setMapZoom: () => {},
   mapMode: "map",
   setMapMode: () => {},
@@ -91,8 +91,8 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
   const [markers, setMarkers] = useState<Marker[]>([])
   const [selectedMarker, setSelectedMarker] = useState<Marker | null>(null)
   const [filter, setFilter] = useState<Filter>({})
-  const [mapCenter, setMapCenter] = useState<[number, number]>([39.92, 32.85]) // Ankara, Turkey
-  const [mapZoom, setMapZoom] = useState(6)
+  const [mapCenter, setMapCenter] = useState<[number, number]>([38.3687, 34.0253]) // Aksaray, Turkey
+  const [mapZoom, setMapZoom] = useState(11)
   const [mapMode, setMapMode] = useState<MapMode>("map")
   const [highlightedMarkerId, setHighlightedMarkerId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -124,7 +124,8 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
             main_categories(name, color),
             sub_categories(name, color)
           `,
-          filter: {}
+          filter: {},
+          limit: 50000 // Fetch up to 50000 records to handle large datasets
         }
 
         if (filter.mainCategoryId) {
@@ -241,7 +242,8 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
           // Admin kullanıcılar için tüm iller
           const provinceResult = await supabase.select("addresses", {
             select: "province",
-            orderBy: { column: "province", ascending: true }
+            orderBy: { column: "province", ascending: true },
+            limit: 50000
           })
 
           if (provinceResult.error) throw provinceResult.error
@@ -262,7 +264,8 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
         const districtResult = await supabase.select("addresses", {
           select: "district",
           filter: { province: targetProvince },
-          orderBy: { column: "district", ascending: true }
+          orderBy: { column: "district", ascending: true },
+          limit: 50000
         })
 
         if (districtResult.error) throw districtResult.error
@@ -285,7 +288,8 @@ export const MapProvider = ({ children }: { children: React.ReactNode }) => {
             province: targetProvince,
             district: filter.district
           },
-          orderBy: { column: "neighborhood", ascending: true }
+          orderBy: { column: "neighborhood", ascending: true },
+          limit: 50000
         })
 
         if (neighborhoodResult.error) throw neighborhoodResult.error

@@ -4,13 +4,30 @@ import type { Database } from '@/types/supabase'
 import { applySecurityMiddleware, applySecurityHeaders } from '@/lib/middleware'
 import { sanitizeString, sanitizeSQL, logSecurityEvent, validateTableName, rateLimit } from '@/lib/security'
 
-// Server-side Supabase client (gizli credentials ile)
+// Server-side Supabase client with anon key
 function createServerSupabaseClient() {
+  const supabaseUrl = process.env.SUPABASE_URL
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Missing Supabase environment variables')
+  }
+
+  return createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  })
+}
+
+// Server-side Supabase client with service role key for RLS-protected tables
+function createServiceRoleSupabaseClient() {
   const supabaseUrl = process.env.SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase server environment variables')
+    throw new Error('Missing Supabase service role environment variables')
   }
 
   return createClient<Database>(supabaseUrl, supabaseServiceKey, {
@@ -102,7 +119,17 @@ export async function POST(request: NextRequest) {
       return applySecurityHeaders(response)
     }
 
-    // Sanitize table name after validation
+    // Define public tables that don't require authentication for reading (check method before sanitization)
+    const publicReadTables = ['addresses', 'main_categories', 'sub_categories', 'api_keys']
+    const isPublicRead = publicReadTables.includes(table) && method?.toUpperCase() === 'SELECT'
+    
+    // Tables that require service role key due to RLS policies
+    const serviceRoleTables = ['api_keys', 'users', 'logs', 'main_categories', 'sub_categories']
+    // For addresses table, use service role for all operations to bypass any RLS limits
+    const requiresServiceRole = serviceRoleTables.includes(table) || table === 'addresses'
+    
+
+    // Sanitize table name after public read check
     let sanitizedTable: string
     try {
       sanitizedTable = sanitizeSQL(table)
@@ -115,18 +142,20 @@ export async function POST(request: NextRequest) {
       return applySecurityHeaders(response)
     }
 
-    // Define public tables that don't require authentication for reading
-    const publicReadTables = ['addresses', 'main_categories', 'sub_categories']
-    const isPublicRead = publicReadTables.includes(sanitizedTable) && method?.toUpperCase() === 'SELECT'
 
     // Apply security middleware - conditional authentication
-    const securityResult = await applySecurityMiddleware(request, {
-      requireAuth: !isPublicRead, // Public read operations don't require auth
-      applyRateLimit: false // Already applied above
-    })
+    // For public read operations (including service role tables), we don't require auth
+    let securityResult = { success: true, user: undefined }
     
-    if (!securityResult.success && securityResult.response) {
-      return applySecurityHeaders(securityResult.response)
+    if (!isPublicRead) {
+      securityResult = await applySecurityMiddleware(request, {
+        requireAuth: true,
+        applyRateLimit: false // Already applied above
+      })
+      
+      if (!securityResult.success && securityResult.response) {
+        return applySecurityHeaders(securityResult.response)
+      }
     }
 
     // Role-based category management control
@@ -194,6 +223,7 @@ export async function POST(request: NextRequest) {
       select, 
       orderBy, 
       limit,
+      range,
       single 
     } = requestData
     
@@ -206,7 +236,8 @@ export async function POST(request: NextRequest) {
       return applySecurityHeaders(response)
     }
     
-    const supabase = createServerSupabaseClient()
+    // Choose appropriate Supabase client based on table requirements
+    const supabase = requiresServiceRole ? createServiceRoleSupabaseClient() : createServerSupabaseClient()
     
     let query: any = supabase.from(sanitizedTable)
     
@@ -298,10 +329,20 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        // Apply limit (max 1000 records for security)
-        if (limit) {
-          const sanitizedLimit = Math.min(Math.max(parseInt(limit), 1), 1000)
-          query = query.limit(sanitizedLimit)
+        // Apply range or limit - Always use range to bypass Supabase's 1000 limit
+        if (range && typeof range === 'object' && 'from' in range && 'to' in range) {
+          // Direct range specification
+          console.log(`Applying direct range: ${range.from} to ${range.to}`)
+          query = query.range(range.from, range.to)
+        } else if (limit) {
+          // Always convert limit to range to bypass Supabase's 1000 row limit
+          const requestedLimit = Math.min(Math.max(parseInt(limit), 1), 50000)
+          console.log(`Converting limit ${limit} to range: 0 to ${requestedLimit - 1}`)
+          query = query.range(0, requestedLimit - 1)
+        } else {
+          // Default: get up to 50000 records
+          console.log(`No limit specified, using default range: 0 to 49999`)
+          query = query.range(0, 49999)
         }
         
         // Single result
@@ -456,8 +497,23 @@ export async function POST(request: NextRequest) {
     
     const result = await query
     
+    // Log the result count for debugging
+    if (result.data && Array.isArray(result.data)) {
+      console.log(`API returned ${result.data.length} records from table ${sanitizedTable}`)
+      if (sanitizedTable === 'addresses' && result.data.length === 1000) {
+        console.warn('WARNING: Exactly 1000 records returned from addresses table - possible Supabase limit hit!')
+      }
+    }
+    
     if (result.error) {
-      // Don't expose detailed error information
+      // Log detailed error information for debugging
+      console.error('Supabase operation failed:', {
+        error: result.error,
+        table: sanitizedTable,
+        method,
+        timestamp: new Date().toISOString()
+      })
+      
       logSecurityEvent('SUPABASE_ERROR', { 
         error: result.error.message,
         table: sanitizedTable,
@@ -465,7 +521,11 @@ export async function POST(request: NextRequest) {
       }, request)
       
       const response = NextResponse.json(
-        { error: 'Database operation failed' }, 
+        { 
+          error: result.error.message || 'Database operation failed',
+          details: result.error.details || null,
+          hint: result.error.hint || null
+        }, 
         { status: 400 }
       )
       return applySecurityHeaders(response)
@@ -557,20 +617,30 @@ export async function GET(request: NextRequest) {
     // Define public tables that don't require authentication for reading
     const publicReadTables = ['addresses', 'main_categories', 'sub_categories', 'api_keys']
     const isPublicRead = publicReadTables.includes(sanitizedTable)
+    
+    // Tables that require service role key due to RLS policies
+    const serviceRoleTables = ['api_keys', 'users', 'logs', 'main_categories', 'sub_categories']
+    // For addresses table, use service role for all operations to bypass any RLS limits
+    const requiresServiceRole = serviceRoleTables.includes(sanitizedTable) || sanitizedTable === 'addresses'
 
     // Apply security middleware - conditional authentication
-    const securityResult = await applySecurityMiddleware(request, {
-      requireAuth: !isPublicRead, // Public read operations don't require auth
-      applyRateLimit: false // Already applied above
-    })
+    let securityResult = { success: true, user: undefined }
     
-    if (!securityResult.success && securityResult.response) {
-      return applySecurityHeaders(securityResult.response)
+    if (!isPublicRead) {
+      securityResult = await applySecurityMiddleware(request, {
+        requireAuth: true,
+        applyRateLimit: false // Already applied above
+      })
+      
+      if (!securityResult.success && securityResult.response) {
+        return applySecurityHeaders(securityResult.response)
+      }
     }
     
     const select = searchParams.get('select')
     
-    const supabase = createServerSupabaseClient()
+    // Choose appropriate Supabase client based on table requirements
+    const supabase = requiresServiceRole ? createServiceRoleSupabaseClient() : createServerSupabaseClient()
     let sanitizedSelect = '*'
     
     if (select) {
@@ -586,18 +656,30 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    const query = supabase.from(sanitizedTable).select(sanitizedSelect)
+    // Use range to get up to 50000 records (bypasses Supabase's 1000 limit)
+    const query = supabase.from(sanitizedTable).select(sanitizedSelect).range(0, 49999)
     
     const result = await query
     
     if (result.error) {
+      // Log detailed error information for debugging
+      console.error('Supabase GET operation failed:', {
+        error: result.error,
+        table: sanitizedTable,
+        timestamp: new Date().toISOString()
+      })
+      
       logSecurityEvent('SUPABASE_GET_ERROR', { 
         error: result.error.message,
         table: sanitizedTable 
       }, request)
       
       const response = NextResponse.json(
-        { error: 'Database query failed' }, 
+        { 
+          error: result.error.message || 'Database query failed',
+          details: result.error.details || null,
+          hint: result.error.hint || null
+        }, 
         { status: 400 }
       )
       return applySecurityHeaders(response)

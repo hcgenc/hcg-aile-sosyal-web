@@ -15,26 +15,18 @@ async function getYandexApiKey(): Promise<string> {
   try {
     console.log("Fetching Yandex API key from Supabase via proxy...")
     
-    // Get authentication token from localStorage
-    const token = localStorage.getItem("auth_token")
-    if (!token) {
-      console.warn("No authentication token found, cannot fetch API key")
-      throw new Error("Authentication required to fetch API key")
-    }
-
-    // Make authenticated API call
+    // Make API call without authentication since api_keys is in public read tables
     const response = await fetch('/api/supabase', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         table: 'api_keys',
         method: 'SELECT',
         select: 'api_key',
         filter: {
-          service_name: 'yandex_maps',
+          service_name: 'Yandex Maps',
           is_active: true
         },
         single: true
@@ -169,12 +161,12 @@ export async function geocodeAddress(address: string): Promise<[number, number] 
     console.log("Geocoding address:", address)
 
     return new Promise((resolve, reject) => {
-      // Use more specific search options for Turkey
+      // Use more specific search options for Aksaray region
       const searchOptions = {
         results: 5,
         boundedBy: [
-          [35.815617, 25.668501], // Southwest corner of Turkey
-          [42.109153, 44.834229], // Northeast corner of Turkey
+          [37.8, 33.5], // Southwest corner of Aksaray region
+          [38.9, 34.6], // Northeast corner of Aksaray region
         ],
         strictBounds: false,
       }
@@ -250,8 +242,8 @@ export async function geocodeAddressEnhanced(
           const searchOptions = {
             results: 3,
             boundedBy: [
-              [35.815617, 25.668501], // Southwest corner of Turkey
-              [42.109153, 44.834229], // Northeast corner of Turkey
+              [37.8, 33.5], // Southwest corner of Aksaray region
+              [38.9, 34.6], // Northeast corner of Aksaray region
             ],
             strictBounds: false,
           }
@@ -427,7 +419,7 @@ export async function testYandexApiKeyFetch(): Promise<void> {
         method: 'SELECT',
         select: 'api_key',
         filter: {
-          service_name: 'yandex_maps',
+          service_name: 'Yandex Maps',
           is_active: true
         },
         single: true

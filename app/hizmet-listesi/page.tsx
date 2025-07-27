@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dialog"
 import { toast } from "@/components/ui/use-toast"
 import type { Marker } from "@/context/map-context"
+import { ServiceStatistics } from "@/components/service-statistics"
 
 export default function ServiceListPage() {
   const router = useRouter()
@@ -82,7 +83,8 @@ export default function ServiceListPage() {
           *,
           main_categories(name, color),
           sub_categories(name, color)
-        `
+        `,
+        limit: 50000 // Fetch up to 50000 records to handle large datasets
       }
 
       const addressResult = await supabase.select("addresses", addressQueryOptions)
@@ -110,6 +112,7 @@ export default function ServiceListPage() {
           createdAt: item.created_at,
         }))
 
+        console.log(`Loaded ${formattedAddresses.length} addresses from database`)
         setAddresses(formattedAddresses)
       }
     } catch (error) {
@@ -321,6 +324,9 @@ export default function ServiceListPage() {
   return (
     <div className="container py-10 px-4 max-w-7xl mx-auto bg-gray-900 min-h-screen pt-20 md:pt-10">
       <h1 className="text-2xl font-bold mb-6 text-gray-100">Hizmet Alanların Listesi</h1>
+
+      {/* İstatistikler */}
+      <ServiceStatistics addresses={addresses} isLoading={isLoading} />
 
       {/* Arama ve Admin Kontrolleri */}
       <div className="flex gap-4 mb-6">

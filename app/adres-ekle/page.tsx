@@ -27,9 +27,9 @@ export default function AddressAddPage() {
   const [activeTab, setActiveTab] = useState("manual") // Start with manual tab
 
   // Koordinat bilgileri
-  const [coordinates, setCoordinates] = useState<[number, number]>([39.92, 32.85])
-  const [latitude, setLatitude] = useState("39.92")
-  const [longitude, setLongitude] = useState("32.85")
+  const [coordinates, setCoordinates] = useState<[number, number]>([38.3687, 34.0253])
+  const [latitude, setLatitude] = useState("38.3687")
+  const [longitude, setLongitude] = useState("34.0253")
 
   // Adres bilgileri
   const [firstName, setFirstName] = useState("")
@@ -468,7 +468,7 @@ export default function AddressAddPage() {
             <div className="h-[300px] w-full mb-6 rounded-md overflow-hidden shadow-inner">
               <YandexMap
                 center={coordinates}
-                zoom={13}
+                zoom={15}
                 markers={previewMarkers}
                 style={{ height: "100%", width: "100%" }}
               />
@@ -629,7 +629,7 @@ export default function AddressAddPage() {
               <div className="h-[300px] w-full rounded-md overflow-hidden shadow-inner">
                 <YandexMap
                   center={coordinates}
-                  zoom={13}
+                  zoom={15}
                   draggableMarker={true}
                   onMarkerDrag={handleMarkerDrag}
                   onMapClick={handleMapClick}
@@ -684,7 +684,7 @@ export default function AddressAddPage() {
               <div className="h-[300px] w-full rounded-md overflow-hidden shadow-inner">
                 <YandexMap
                   center={coordinates}
-                  zoom={13}
+                  zoom={15}
                   draggableMarker={true}
                   onMarkerDrag={handleMarkerDrag}
                   onMapClick={handleMapClick}

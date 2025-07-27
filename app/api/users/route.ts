@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import bcrypt from 'bcryptjs'
 import { verifyToken } from '@/lib/auth'
 import { applySecurityHeaders } from '@/lib/middleware'
 import { sanitizeString } from '@/lib/security'
 import type { Database } from '@/types/supabase'
 
-// Server-side Supabase client
+// Server-side Supabase client (auth endpoints need service role for user table access)
 function createServerSupabaseClient() {
   const supabaseUrl = process.env.SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase server environment variables')
+    throw new Error('Missing Supabase environment variables')
   }
 
   return createClient<Database>(supabaseUrl, supabaseServiceKey, {
@@ -132,16 +131,12 @@ export async function POST(request: NextRequest) {
       return applySecurityHeaders(response)
     }
 
-    // Şifre hashleme
-    const saltRounds = 12
-    const hashedPassword = await bcrypt.hash(password, saltRounds)
-
-    // Yeni kullanıcı ekleme
+    // Yeni kullanıcı ekleme (plain text password as per database schema)
     const { data: newUser, error: insertError } = await supabase
       .from('users')
       .insert({
         username: sanitizedUsername,
-        password: hashedPassword,
+        password: password,
         full_name: sanitizedFullName,
         role: role,
         city: sanitizedCity

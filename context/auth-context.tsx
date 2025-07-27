@@ -188,7 +188,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (!supabase) return
 
     try {
-      await supabase.insert("logs", {
+      const result = await supabase.insert("logs", {
         user_id: userObj.id,
         username: userObj.username,
         action,
@@ -196,8 +196,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         ip_address: null, // Could be implemented with a service
         user_agent: navigator.userAgent,
       })
+      
+      if (result.error) {
+        // Handle authentication errors
+        if (result.error.message?.includes('authentication') || result.error.message?.includes('401') || result.error.message?.includes('Invalid authentication token')) {
+          // Token might be expired - silently fail for logging
+          // Don't logout the user just because logging failed
+          return
+        }
+        console.error("Failed to log action:", JSON.stringify({
+          action,
+          error: result.error.message,
+          details: result.error.details
+        }, null, 2))
+      }
     } catch (error) {
-      console.error("Error logging action:", error)
+      console.error("Error logging action:", error instanceof Error ? error.message : "Unknown error")
     }
   }
 

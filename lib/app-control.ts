@@ -5,15 +5,21 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
 // Supabase client (server-side)
-const supabaseUrl = process.env.SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+function createServerSupabaseClient() {
+  const supabaseUrl = process.env.SUPABASE_URL
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Missing Supabase server environment variables')
   }
-})
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  })
+}
 
 // App status cache (performance için)
 let appStatusCache: {
@@ -47,10 +53,12 @@ export async function checkAppStatus(): Promise<AppStatus> {
   }
 
   try {
+    const supabase = createServerSupabaseClient()
+    
     // Supabase'den son status'u al
     const { data, error } = await supabase
       .from('app_is_active')
-      .select('active, reason, updated_at, updated_by')
+      .select('is_active, maintenance_message, updated_at, updated_by')
       .order('updated_at', { ascending: false })
       .limit(1)
       .single()
@@ -73,14 +81,14 @@ export async function checkAppStatus(): Promise<AppStatus> {
 
     // Cache'i güncelle
     appStatusCache = {
-      isActive: data.active,
+      isActive: data.is_active,
       lastChecked: now,
-      reason: data.reason
+      reason: data.maintenance_message
     }
 
     return {
-      isActive: data.active,
-      reason: data.reason,
+      isActive: data.is_active,
+      reason: data.maintenance_message,
       updatedAt: data.updated_at,
       updatedBy: data.updated_by
     }
@@ -109,6 +117,8 @@ export async function updateAppStatus(
 ): Promise<{ success: boolean, message: string }> {
   
   try {
+    const supabase = createServerSupabaseClient()
+    
     // Admin kontrolü
     const { data: adminUser, error: userError } = await supabase
       .from('users')
@@ -124,21 +134,22 @@ export async function updateAppStatus(
     }
 
     // Status güncelle
+    const { data: currentRecord } = await supabase
+      .from('app_is_active')
+      .select('id')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .single()
+
     const { error } = await supabase
       .from('app_is_active')
       .update({
-        active: newStatus,
-        reason: reason || `Status changed to ${newStatus ? 'active' : 'inactive'} by ${adminUsername}`,
+        is_active: newStatus,
+        maintenance_message: reason || `Status changed to ${newStatus ? 'active' : 'inactive'} by ${adminUsername}`,
         updated_by: adminUsername,
         updated_at: new Date().toISOString()
       })
-      .eq('id', (await supabase
-        .from('app_is_active')
-        .select('id')
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .single()
-      ).data?.id)
+      .eq('id', currentRecord?.id)
 
     if (error) {
       return {
@@ -209,6 +220,7 @@ export class AppStatusMonitor {
   }
 
   private setupRealtimeSubscription() {
+    const supabase = createServerSupabaseClient() 
     this.subscription = supabase
       .channel('app-status-changes')
       .on(
@@ -223,15 +235,15 @@ export class AppStatusMonitor {
           
           // Cache'i güncelle
           appStatusCache = {
-            isActive: payload.new.active,
+            isActive: payload.new.is_active,
             lastChecked: Date.now(),
-            reason: payload.new.reason
+            reason: payload.new.maintenance_message
           }
 
           // Callbacks'leri çağır
           this.callbacks.forEach(callback => {
             try {
-              callback(payload.new.active)
+              callback(payload.new.is_active)
             } catch (error) {
               console.error('App status callback error:', error)
             }
@@ -249,6 +261,7 @@ export class AppStatusMonitor {
   // Subscription'ı temizle
   cleanup() {
     if (this.subscription) {
+      const supabase = createServerSupabaseClient()
       supabase.removeChannel(this.subscription)
       this.subscription = null
     }

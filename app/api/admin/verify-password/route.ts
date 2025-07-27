@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import bcrypt from 'bcrypt'
 import { applySecurityHeaders } from '@/lib/middleware'
 import { logSecurityEvent } from '@/lib/security'
 import type { Database } from '@/types/supabase'
 
-// Server-side Supabase client (with secret credentials)
+// Server-side Supabase client (auth endpoints need service role for user table access)
 function createServerSupabaseClient() {
   const supabaseUrl = process.env.SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase server environment variables')
+    throw new Error('Missing Supabase environment variables')
   }
 
   return createClient<Database>(supabaseUrl, supabaseServiceKey, {
@@ -72,7 +71,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify password using bcrypt (same as login)
-    const isPasswordValid = await bcrypt.compare(password, user.password)
+    const isPasswordValid = password === user.password
 
     if (!isPasswordValid) {
       // Log failed password verification

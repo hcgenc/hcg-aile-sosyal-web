@@ -200,6 +200,16 @@ export default function CategoryManagementPage() {
   const addMainCategory = useCallback(async () => {
     if (!supabase || !newMainCategoryName.trim()) return
 
+    // Permission kontrolü
+    if (!hasPermission("MANAGE_CATEGORIES")) {
+      toast({
+        title: "Yetkisiz İşlem",
+        description: "Kategori yönetimi için yetkiniz bulunmuyor.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       const result = await supabase.insert("main_categories", {
         name: newMainCategoryName.trim(),
@@ -220,9 +230,19 @@ export default function CategoryManagementPage() {
       loadMainCategories()
     } catch (error) {
       console.error("Ana kategori eklenirken hata:", error)
+      console.error("Error details:", error instanceof Error ? error.message : JSON.stringify(error))
+      
+      // Parse error message if it comes from Supabase
+      let errorMessage = "Risk faktörü eklenirken bir sorun oluştu."
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = (error as any).message || errorMessage
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+      
       toast({
         title: "Hata",
-        description: "Risk faktörü eklenirken bir sorun oluştu.",
+        description: errorMessage,
         variant: "destructive",
       })
     }
@@ -231,6 +251,16 @@ export default function CategoryManagementPage() {
   // Ana kategori düzenle
   const updateMainCategory = useCallback(async () => {
     if (!supabase || !editMainCategoryId || !editMainCategoryName.trim()) return
+
+    // Permission kontrolü
+    if (!hasPermission("MANAGE_CATEGORIES")) {
+      toast({
+        title: "Yetkisiz İşlem",
+        description: "Kategori yönetimi için yetkiniz bulunmuyor.",
+        variant: "destructive",
+      })
+      return
+    }
 
     try {
       const result = await supabase.update("main_categories", 
@@ -256,9 +286,10 @@ export default function CategoryManagementPage() {
       loadMainCategories()
     } catch (error) {
       console.error("Ana kategori güncellenirken hata:", error)
+      console.error("Error details:", error instanceof Error ? error.message : JSON.stringify(error))
       toast({
         title: "Hata",
-        description: "Risk faktörü güncellenirken bir sorun oluştu.",
+        description: error instanceof Error ? error.message : "Risk faktörü güncellenirken bir sorun oluştu.",
         variant: "destructive",
       })
     }

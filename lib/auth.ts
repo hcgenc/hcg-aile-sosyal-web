@@ -1,4 +1,3 @@
-import bcrypt from 'bcryptjs'
 import { SignJWT, jwtVerify } from 'jose'
 
 const JWT_SECRET = new TextEncoder().encode(
@@ -11,17 +10,6 @@ export interface JWTPayload {
   role: string
   iat: number
   exp: number
-}
-
-// Password hashing
-export async function hashPassword(password: string): Promise<string> {
-  const saltRounds = 12
-  return await bcrypt.hash(password, saltRounds)
-}
-
-// Password verification
-export async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
-  return await bcrypt.compare(password, hashedPassword)
 }
 
 // JWT token generation

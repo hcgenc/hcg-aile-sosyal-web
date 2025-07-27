@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import bcrypt from 'bcrypt'
 import { generateToken } from '@/lib/auth'
 import { applySecurityHeaders } from '@/lib/middleware'
 import { loginRateLimit, logSecurityEvent, sanitizeString } from '@/lib/security'
 import type { Database } from '@/types/supabase'
 
-// Server-side Supabase client (with secret credentials)
+// Server-side Supabase client (auth endpoints need service role for user table access)
 function createServerSupabaseClient() {
   const supabaseUrl = process.env.SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase server environment variables')
+    throw new Error('Missing Supabase environment variables')
   }
 
   return createClient<Database>(supabaseUrl, supabaseServiceKey, {
@@ -111,23 +110,24 @@ export async function POST(request: NextRequest) {
       return applySecurityHeaders(response)
     }
 
-    // Sanitize inputs (but keep password as is for bcrypt comparison)
-    const sanitizedUsername = sanitizeString(username)
-    // Don't sanitize password - bcrypt needs the original password
-    
     const supabase = createServerSupabaseClient()
     
-    // Query user from database
+    // Debug log
+    console.log('Login attempt for username:', username)
+    
+    // Query user from database - use original username without sanitization
     const { data: user, error } = await supabase
       .from('users')
       .select('id, username, password, role, full_name, city')
-      .eq('username', sanitizedUsername)
+      .eq('username', username.trim())
       .single()
+      
+    console.log('Database query result:', { user: user ? 'found' : 'not found', error: error?.message })
 
     if (error || !user) {
       // Log failed login attempt
       logSecurityEvent('FAILED_LOGIN_ATTEMPT', { 
-        username: sanitizedUsername,
+        username: username.trim(),
         reason: 'user_not_found'
       }, request)
       
@@ -138,13 +138,13 @@ export async function POST(request: NextRequest) {
       return applySecurityHeaders(response)
     }
 
-    // Verify password (use original password, not sanitized)
-    const isValidPassword = await bcrypt.compare(password, user.password)
+    // Direct password comparison (plain text as per database schema)
+    const isValidPassword = password === user.password
     
     if (!isValidPassword) {
       // Log failed login attempt
       logSecurityEvent('FAILED_LOGIN_ATTEMPT', { 
-        username: sanitizedUsername,
+        username: username.trim(),
         reason: 'invalid_password'
       }, request)
       

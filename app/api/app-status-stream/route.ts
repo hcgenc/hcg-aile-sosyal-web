@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
             message: 'Connection alive',
             timestamp: new Date().toISOString()
           })
-          controller.enqueue(`data: ${data}\n\n`)
+          controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`))
         } catch (error) {
           console.error('Error sending heartbeat:', error)
         }
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
             timestamp: new Date().toISOString()
           })
 
-          controller.enqueue(`data: ${data}\n\n`)
+          controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`))
         } catch (error) {
           console.error('Error in SSE status check:', error)
           
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
             message: 'Status check temporarily failed',
             timestamp: new Date().toISOString()
           })
-          controller.enqueue(`data: ${errorData}\n\n`)
+          controller.enqueue(new TextEncoder().encode(`data: ${errorData}\n\n`))
         }
       }
 
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
           message: 'Realtime connection active',
           timestamp: new Date().toISOString()
         })
-        controller.enqueue(`data: ${data}\n\n`)
+        controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`))
       }
 
       // Send immediate status update when connection is established

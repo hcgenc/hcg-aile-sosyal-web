@@ -4,13 +4,13 @@ import { applySecurityHeaders } from '@/lib/middleware'
 import { logSecurityEvent } from '@/lib/security'
 import type { Database } from '@/types/supabase'
 
-// Server-side Supabase client (with secret credentials)
+// Server-side Supabase client (admin endpoints need service role for user table access)
 function createServerSupabaseClient() {
   const supabaseUrl = process.env.SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase server environment variables')
+    throw new Error('Missing Supabase environment variables')
   }
 
   return createClient<Database>(supabaseUrl, supabaseServiceKey, {

@@ -15,6 +15,7 @@ export interface SupabaseOptions {
   filter?: SupabaseFilter
   orderBy?: SupabaseOrderBy | SupabaseOrderBy[]
   limit?: number
+  range?: { from: number; to: number }
   single?: boolean
 }
 
@@ -23,6 +24,7 @@ export interface SupabaseResponse<T = any> {
   error?: {
     message: string
     details?: any
+    hint?: any
   }
   count?: number
   status?: number
@@ -53,22 +55,34 @@ class SupabaseProxy {
       const result = await response.json()
 
       if (!response.ok) {
+        // Only log non-auth errors or non-logging operations
+        if (response.status !== 401 || payload.table !== 'logs') {
+          console.error('Supabase proxy request failed:', JSON.stringify({
+            status: response.status,
+            statusText: response.statusText,
+            result,
+            payload
+          }, null, 2))
+        }
+        
         return {
           data: null,
           error: {
-            message: result.error || 'Request failed',
-            details: result.details
+            message: result.error || `Request failed with status ${response.status}`,
+            details: result.details || null,
+            hint: result.hint || null
           }
         }
       }
 
       return result
     } catch (error) {
+      console.error('Supabase proxy network error:', error instanceof Error ? error.message : 'Unknown error')
       return {
         data: null,
         error: {
           message: error instanceof Error ? error.message : 'Network error',
-          details: error
+          details: error instanceof Error ? error.toString() : String(error)
         }
       }
     }

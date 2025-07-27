@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source:*)",
+      "Bash(node:*)",
+      "Bash(SUPABASE_URL=\"https://pflobavtzrkpbchxcqge.supabase.co\" SUPABASE_SERVICE_ROLE_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmbG9iYXZ0enJrcGJjaHhjcWdlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MzI2OTU5NCwiZXhwIjoyMDY4ODQ1NTk0fQ.4gPmb51Mecx71SJvbNi_TH3C1MIZtkWTLxylk9XnBcQ\" node -e \"\nconst { createClient } = require(''@supabase/supabase-js'');\nconst supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);\nsupabase.from(''app_is_active'').select(''*'').then(result => console.log(''App status:'', JSON.stringify(result, null, 2))).catch(err => console.error(''Error:'', err));\n\")",
+      "Bash(curl:*)",
+      "Bash(timeout:*)",
+      "Bash(npm ls:*)",
+      "Bash(rm:*)",
+      "Bash(npm run dev:*)",
+      "Bash(pkill:*)",
+      "Bash(SUPABASE_URL=\"https://pflobavtzrkpbchxcqge.supabase.co\" SUPABASE_ANON_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmbG9iYXZ0enJrcGJjaHhjcWdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMyNjl\n594LCJleHAiOjIwNjg4NDU1OTR9.wlPGcC0jFHTvhP_vWST0NHo8Zs1PQ9xMYaAkZ6zbFrc\" node -e \"\nconst { createClient } = require(''@supabase/supabase-js'');\nconst supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);\nsupabase.from(''users'').select(''username, id'').eq(''username'', ''HCG'').then(result => console.log(''HCG users:'', JSON.stringify(result.data, null, 2))).catch(err => console.error(''Error:'', err));\n\")",
+      "Bash(npm install)",
+      "Bash(SUPABASE_URL=\"https://pflobavtzrkpbchxcqge.supabase.co\" SUPABASE_ANON_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmbG9iYXZ0enJrcGJjaHhjcWdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMyNjk1OTQsImV4cCI6MjA2ODg0NTU5NH0.wlPGcC0jFHTvhP_vWST0NHo8Zs1PQ9xMYaAkZ6zbFrc\" node -e \"\nconst { createClient } = require(''@supabase/supabase-js'');\nconst supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);\nsupabase.from(''api_keys'').select(''api_key'').eq(''service_name'', ''Yandex Maps'').eq(''is_active'', true).single().then(result => console.log(''Direct result:'', JSON.stringify(result, null, 2))).catch(err => console.error(''Error:'', err));\n\")",
+      "Bash(ss:*)",
+      "Bash(lsof:*)",
+      "Bash(true)",
+      "Bash(npm run lint)",
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": []
+  }
+}
